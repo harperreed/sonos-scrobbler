@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use log::{info, debug, error};
 use std::env;
+mod sonos;
 use std::time::Duration;
 use futures_util::StreamExt;
 use ssdp_client::{SearchTarget, URN};

@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 
     while retry_count < MAX_RETRIES {
         info!("Discovery attempt {}/{}", retry_count + 1, MAX_RETRIES);
-        match discovery::discover_devices(DISCOVERY_TIMEOUT_MS as i32, RESPONSE_TIMEOUT_MS as i32).await {
+        match discovery::discover_devices(DISCOVERY_TIMEOUT_MS, RESPONSE_TIMEOUT_MS).await {
             Ok(found_devices) => {
                 if !found_devices.is_empty() {
                     info!("Successfully found {} devices!", found_devices.len());
@@ -48,9 +48,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 error!("Discovery attempt failed: {}", e);
                 // Log more detailed error information
-                if let Some(source) = e.source() {
-                    error!("Error source: {}", source);
-                }
+                error!("Error details: {}", e);
             }
         }
         retry_count += 1;

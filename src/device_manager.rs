@@ -131,9 +131,7 @@ impl DeviceManager {
             }
             Err(e) => {
                 error!("Failed to rediscover devices: {}", e);
-                if let Some(source) = e.source() {
-                    error!("Error source: {}", source);
-                }
+                error!("Error details: {}", e);
             }
         }
 

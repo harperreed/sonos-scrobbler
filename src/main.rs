@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {
-        let speaker = Speaker::new(device.ip_addr.clone());
+        let speaker = Speaker::new(&device.ip_addr.to_string()).await.map_err(anyhow::Error::msg)?;
         info!("Monitoring speaker: {}", device.room_name);
         
         let mut interval = time::interval(Duration::from_secs(5));
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             
-            match speaker.get_current_track().await {
+            match speaker.get_current_track() {
                 Ok(track) => {
                     if let Some(title) = track.title {
                         info!("Now Playing: {}", title);

@@ -25,28 +25,36 @@ async fn main() -> Result<()> {
     info!("Starting Sonos Scrobbler");
     
     // Discover Sonos devices
-    info!("Discovering Sonos devices...");
-    // Increase timeouts: 10 seconds for discovery, 5 seconds for response
-    let mut retry_count = 0;
-    let max_retries = 3;
+    info!("Starting Sonos device discovery...");
     let mut devices = Vec::new();
+    let discovery_attempts = 3;
+    let discovery_timeout_ms = 15000; // 15 seconds
+    let response_timeout_ms = 5000;   // 5 seconds
 
-    while retry_count < max_retries {
-        match discovery::discover_devices(10000, 5000).await {
+    for attempt in 1..=discovery_attempts {
+        info!("Discovery attempt {}/{}", attempt, discovery_attempts);
+        
+        match discovery::discover_devices(discovery_timeout_ms, response_timeout_ms).await {
             Ok(found_devices) => {
                 if !found_devices.is_empty() {
+                    info!("Found {} devices!", found_devices.len());
+                    for device in &found_devices {
+                        info!("Found device: {} at {}", device.room_name, device.ip_addr);
+                    }
                     devices = found_devices;
                     break;
+                } else {
+                    info!("No devices found in attempt {}", attempt);
                 }
-                info!("No devices found, retrying... ({}/{})", retry_count + 1, max_retries);
             }
             Err(e) => {
-                error!("Discovery attempt failed: {}", e);
+                error!("Discovery attempt {} failed: {}", attempt, e);
             }
         }
-        retry_count += 1;
-        if retry_count < max_retries {
-            time::sleep(Duration::from_secs(2)).await;
+
+        if attempt < discovery_attempts {
+            info!("Waiting before next discovery attempt...");
+            time::sleep(Duration::from_secs(3)).await;
         }
     }
     

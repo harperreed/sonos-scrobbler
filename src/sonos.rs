@@ -6,7 +6,6 @@ use quick_xml::de::from_str;
 
 /// Represents detailed track information from a Sonos device
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TrackInfo {
     #[serde(rename = "Track")]
     pub title: String,
@@ -14,10 +13,26 @@ pub struct TrackInfo {
     pub artist: String,
     #[serde(rename = "Album")]
     pub album: String,
-    #[serde(rename = "Duration")]
+    #[serde(rename = "TrackDuration")]
     pub duration: String,
     #[serde(rename = "RelTime")]
     pub position: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetPositionInfoResponse {
+    #[serde(rename = "u:GetPositionInfoResponse")]
+    position_info: PositionInfo,
+}
+
+#[derive(Debug, Deserialize)]
+struct PositionInfo {
+    #[serde(rename = "TrackMetaData")]
+    track_metadata: String,
+    #[serde(rename = "RelTime")]
+    rel_time: String,
+    #[serde(rename = "TrackDuration")]
+    track_duration: String,
 }
 
 /// Represents the currently playing track information
@@ -99,18 +114,39 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
 
     let response_text = response.text().await?;
     
-    // Extract the relevant XML portion containing track info
-    let track_info_start = response_text.find("<u:GetPositionInfoResponse")
-        .ok_or_else(|| anyhow!("Could not find track info in response"))?;
-    let track_info_end = response_text.find("</u:GetPositionInfoResponse>")
-        .ok_or_else(|| anyhow!("Malformed response XML"))?;
-    let track_info_xml = &response_text[track_info_start..track_info_end + 25];
+    // Parse the full response into our response structure
+    let position_info: GetPositionInfoResponse = from_str(&response_text)
+        .context("Failed to parse position info response")?;
 
-    // Parse the XML into our TrackInfo struct
-    let track_info: TrackInfo = from_str(track_info_xml)
-        .context("Failed to parse track information")?;
+    // The track metadata is embedded as an escaped XML string, we need to unescape it
+    let track_metadata = position_info.position_info.track_metadata;
+    
+    // Parse the track metadata XML
+    let track_info = TrackInfo {
+        title: extract_didl_value(&track_metadata, "dc:title")
+            .unwrap_or_else(|_| "Unknown Title".to_string()),
+        artist: extract_didl_value(&track_metadata, "dc:creator")
+            .unwrap_or_else(|_| "Unknown Artist".to_string()),
+        album: extract_didl_value(&track_metadata, "upnp:album")
+            .unwrap_or_else(|_| "Unknown Album".to_string()),
+        duration: position_info.position_info.track_duration,
+        position: position_info.position_info.rel_time,
+    };
 
     Ok(track_info)
+}
+
+/// Helper function to extract values from DIDL-Lite XML
+fn extract_didl_value(xml: &str, tag: &str) -> Result<String> {
+    let start_tag = format!("<{}>", tag);
+    let end_tag = format!("</{}>", tag);
+    
+    let start = xml.find(&start_tag)
+        .ok_or_else(|| anyhow!("Could not find start tag: {}", tag))?;
+    let end = xml.find(&end_tag)
+        .ok_or_else(|| anyhow!("Could not find end tag: {}", tag))?;
+    
+    Ok(xml[start + start_tag.len()..end].to_string())
 }
 
 async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {

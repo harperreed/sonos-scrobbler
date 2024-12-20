@@ -44,9 +44,20 @@ async fn discover_sonos_devices() -> Result<Vec<String>> {
         .filter_map(|response| {
             match response {
                 Ok(response) => {
-                    response.location()
-                        .map(|url| url.host_str().unwrap_or("").to_string())
-                        .filter(|host| !host.is_empty())
+                    if let Some(location) = response.location() {
+                        if let Some(host) = location.host_str() {
+                            let host_string = host.to_string();
+                            if !host_string.is_empty() {
+                                Some(host_string)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 },
                 Err(e) => {
                     debug!("Error processing SSDP response: {}", e);

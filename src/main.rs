@@ -1,9 +1,11 @@
 mod sonos;
+mod device_manager;
 
 use dotenv::dotenv;
 use log::{debug, info, error};
 use rusty_sonos::discovery;
 use crate::sonos::get_current_track_info;
+use crate::device_manager::DeviceManager;
 use std::time::Duration;
 use tokio::time;
 use anyhow::Result;
@@ -36,15 +38,23 @@ async fn main() -> Result<()> {
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {
         info!("Monitoring speaker: {} at {}", device.room_name, device.ip_addr);
-        let ip = device.ip_addr.to_string();
-        debug!("Using device IP: {}", ip);
-        
+        let mut device_manager = DeviceManager::new(
+            device.ip_addr.to_string(),
+            device.room_name.clone(),
+        );
+
+        device_manager.connect().await?;
         let mut interval = time::interval(Duration::from_secs(5));
         
         loop {
             interval.tick().await;
             
-            match get_current_track_info(&ip).await {
+            if !device_manager.check_connection().await {
+                error!("Lost connection to device and unable to reconnect");
+                break;
+            }
+
+            match get_current_track_info(device_manager.get_ip()).await {
                 Ok(track) => {
                     info!("Now Playing: {}", track.title);
                     info!("Artist: {}", track.artist);

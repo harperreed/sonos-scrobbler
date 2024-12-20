@@ -51,8 +51,6 @@ impl From<SonosResponse> for PlaybackState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::Server;
-
     const SAMPLE_SOAP_RESPONSE: &str = r#"<?xml version="1.0"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
             <s:Body>
@@ -72,7 +70,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_current_track_info() {
-        let mock_server = mockito::Server::new();
+        let mut mock_server = mockito::Server::new();
         
         // Setup mock response
         let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")

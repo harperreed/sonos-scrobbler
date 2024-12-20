@@ -5,7 +5,7 @@ mod discovery;
 use dotenv::dotenv;
 use log::{info, error, warn};
 use crate::device_manager::DeviceManager;
-use crate::discovery::{discover_sonos_devices, SonosDevice};
+use crate::discovery::discover_sonos_devices;
 use std::time::Duration;
 use tokio::time;
 use anyhow::Result;
@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
     // Rest of the code remains the same...
     if let Some(device) = devices.first() {
         info!("Monitoring speaker: {} at {}", device.room_name, device.ip_addr);
-        let mut device_manager = DeviceManager::new(
+        let device_manager = DeviceManager::new(
             device.ip_addr.clone(),
             device.room_name.clone(),
         );

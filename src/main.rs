@@ -47,9 +47,6 @@ async fn main() -> Result<()> {
                         if let Some(artist) = track.artist {
                             info!("Artist: {}", artist);
                         }
-                        if let Some(album) = track.album {
-                            info!("Album: {}", album);
-                        }
                     }
                 }
                 Err(e) => {

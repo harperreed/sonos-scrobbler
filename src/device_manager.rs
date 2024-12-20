@@ -1,8 +1,12 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use log::{error, info, warn};
+use rusty_sonos::discovery;
 use std::time::Duration;
 use tokio::time;
-use rusty_sonos::discovery;
+
+const CONNECTION_TIMEOUT_SECS: u64 = 5;
+const MAX_RETRIES: u32 = 5;
+const RETRY_DELAY_SECS: u64 = 5;
 
 #[derive(Debug)]
 pub enum ConnectionState {
@@ -26,15 +30,33 @@ impl DeviceManager {
             room_name,
             state: ConnectionState::Disconnected,
             retry_count: 0,
-            max_retries: 5,
+            max_retries: MAX_RETRIES,
         }
     }
 
     pub async fn connect(&mut self) -> Result<()> {
-        info!("Connecting to device {} at {}", self.room_name, self.ip_addr);
-        self.state = ConnectionState::Connected;
-        self.retry_count = 0;
-        Ok(())
+        info!(
+            "Connecting to device {} at {}",
+            self.room_name, self.ip_addr
+        );
+
+        // Try to establish initial connection
+        match self.ping().await {
+            Ok(_) => {
+                info!("Successfully connected to device {}", self.room_name);
+                self.state = ConnectionState::Connected;
+                self.retry_count = 0;
+                Ok(())
+            }
+            Err(e) => {
+                error!(
+                    "Failed to establish initial connection to {}: {}",
+                    self.room_name, e
+                );
+                self.state = ConnectionState::Disconnected;
+                Err(e)
+            }
+        }
     }
 
     pub async fn check_connection(&mut self) -> bool {
@@ -57,13 +79,14 @@ impl DeviceManager {
     async fn ping(&self) -> Result<()> {
         let client = reqwest::Client::new();
         let url = format!("http://{}:1400/status/info", self.ip_addr);
-        
-        client.get(url)
-            .timeout(Duration::from_secs(5))
+
+        client
+            .get(url)
+            .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
             .send()
             .await
             .context("Failed to ping device")?;
-        
+
         Ok(())
     }
 
@@ -72,7 +95,17 @@ impl DeviceManager {
         self.retry_count += 1;
 
         if self.retry_count > self.max_retries {
-            error!("Max reconnection attempts reached for device {}", self.room_name);
+            error!(
+                "Max reconnection attempts reached for device {}",
+                self.room_name
+            );
+            error!("Please check:");
+            error!("  1. Is the device powered on and connected to the network?");
+            error!(
+                "  2. Can you access the device's web interface at http://{}:1400?",
+                self.ip_addr
+            );
+            error!("  3. Are there any network connectivity issues?");
             self.state = ConnectionState::Disconnected;
             return false;
         }
@@ -82,8 +115,8 @@ impl DeviceManager {
             self.room_name, self.retry_count, self.max_retries
         );
 
-        // Try to rediscover devices
-        match discovery::discover_devices(5000, 5000).await {
+        // Try to rediscover devices with increased timeouts
+        match discovery::discover_devices(30000, 10000).await {
             Ok(devices) => {
                 if let Some(device) = devices.iter().find(|d| d.room_name == self.room_name) {
                     if device.ip_addr.to_string() != self.ip_addr {
@@ -98,10 +131,14 @@ impl DeviceManager {
             }
             Err(e) => {
                 error!("Failed to rediscover devices: {}", e);
+                if let Some(source) = e.source() {
+                    error!("Error source: {}", source);
+                }
             }
         }
 
-        time::sleep(Duration::from_secs(5)).await;
+        info!("Waiting {} seconds before next retry...", RETRY_DELAY_SECS);
+        time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
         false
     }
 

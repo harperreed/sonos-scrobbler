@@ -2,7 +2,7 @@ mod sonos;
 mod device_manager;
 
 use dotenv::dotenv;
-use log::{info, error};
+use log::{info, error, warn};
 use rusty_sonos::discovery;
 use crate::sonos::get_current_track_info;
 use crate::device_manager::DeviceManager;
@@ -16,6 +16,11 @@ fn setup_logging() {
     env_logger::init();
 }
 
+const DISCOVERY_TIMEOUT_MS: u64 = 30000;  // 30 seconds
+const RESPONSE_TIMEOUT_MS: u64 = 10000;   // 10 seconds
+const MAX_RETRIES: u32 = 5;               // Increased from 3
+const RETRY_DELAY_SECS: u64 = 5;          // Increased from 2
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load environment variables and setup logging
@@ -25,45 +30,49 @@ async fn main() -> Result<()> {
     info!("Starting Sonos Scrobbler");
     
     // Discover Sonos devices
-    info!("Starting Sonos device discovery...");
+    info!("Discovering Sonos devices... (timeout: {}s)", DISCOVERY_TIMEOUT_MS / 1000);
+    let mut retry_count = 0;
     let mut devices = Vec::new();
-    let discovery_attempts = 3;
-    let discovery_timeout_ms = 15000; // 15 seconds
-    let response_timeout_ms = 5000;   // 5 seconds
 
-    for attempt in 1..=discovery_attempts {
-        info!("Discovery attempt {}/{}", attempt, discovery_attempts);
-        
-        match discovery::discover_devices(discovery_timeout_ms, response_timeout_ms).await {
+    while retry_count < MAX_RETRIES {
+        info!("Discovery attempt {}/{}", retry_count + 1, MAX_RETRIES);
+        match discovery::discover_devices(DISCOVERY_TIMEOUT_MS as i32, RESPONSE_TIMEOUT_MS as i32).await {
             Ok(found_devices) => {
                 if !found_devices.is_empty() {
-                    info!("Found {} devices!", found_devices.len());
-                    for device in &found_devices {
-                        info!("Found device: {} at {}", device.room_name, device.ip_addr);
-                    }
+                    info!("Successfully found {} devices!", found_devices.len());
                     devices = found_devices;
                     break;
-                } else {
-                    info!("No devices found in attempt {}", attempt);
                 }
+                warn!("No devices found on attempt {}/{}", retry_count + 1, MAX_RETRIES);
             }
             Err(e) => {
-                error!("Discovery attempt {} failed: {}", attempt, e);
+                error!("Discovery attempt failed: {}", e);
+                // Log more detailed error information
+                if let Some(source) = e.source() {
+                    error!("Error source: {}", source);
+                }
             }
         }
-
-        if attempt < discovery_attempts {
-            info!("Waiting before next discovery attempt...");
-            time::sleep(Duration::from_secs(3)).await;
+        retry_count += 1;
+        if retry_count < MAX_RETRIES {
+            info!("Waiting {} seconds before next retry...", RETRY_DELAY_SECS);
+            time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
         }
     }
     
     if devices.is_empty() {
-        info!("No Sonos devices found on the network");
+        error!("No Sonos devices found after {} attempts. Please check:", MAX_RETRIES);
+        error!("  1. Are you on the same network as your Sonos devices?");
+        error!("  2. Is UDP port 1900 open (required for SSDP)?");
+        error!("  3. Is multicast traffic allowed on your network?");
+        error!("  4. Are you using a VPN that might block discovery?");
         return Ok(());
     }
     
     info!("Found {} Sonos device(s)", devices.len());
+    for device in &devices {
+        info!("  - {} at {}", device.room_name, device.ip_addr);
+    }
     
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {

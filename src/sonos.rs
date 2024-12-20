@@ -20,9 +20,15 @@ pub struct TrackInfo {
 }
 
 #[derive(Debug, Deserialize)]
-struct GetPositionInfoResponse {
-    #[serde(rename = "u:GetPositionInfoResponse")]
-    position_info: PositionInfo,
+struct SoapEnvelope {
+    #[serde(rename = "Body")]
+    body: SoapBody,
+}
+
+#[derive(Debug, Deserialize)]
+struct SoapBody {
+    #[serde(rename = "GetPositionInfoResponse")]
+    position_info_response: PositionInfo,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,11 +121,11 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
     let response_text = response.text().await?;
     
     // Parse the full response into our response structure
-    let position_info: GetPositionInfoResponse = from_str(&response_text)
-        .context("Failed to parse position info response")?;
+    let envelope: SoapEnvelope = from_str(&response_text)
+        .context("Failed to parse SOAP envelope")?;
 
     // The track metadata is embedded as an escaped XML string, we need to unescape it
-    let track_metadata = position_info.position_info.track_metadata;
+    let track_metadata = envelope.body.position_info_response.track_metadata;
     
     // Parse the track metadata XML
     let track_info = TrackInfo {
@@ -129,8 +135,8 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
             .unwrap_or_else(|_| "Unknown Artist".to_string()),
         album: extract_didl_value(&track_metadata, "upnp:album")
             .unwrap_or_else(|_| "Unknown Album".to_string()),
-        duration: position_info.position_info.track_duration,
-        position: position_info.position_info.rel_time,
+        duration: envelope.body.position_info_response.track_duration,
+        position: envelope.body.position_info_response.rel_time,
     };
 
     Ok(track_info)

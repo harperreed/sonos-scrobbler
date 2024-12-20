@@ -19,6 +19,56 @@ pub struct TrackInfo {
     pub position: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::mock;
+
+    const SAMPLE_SOAP_RESPONSE: &str = r#"<?xml version="1.0"?>
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+            <s:Body>
+                <u:GetPositionInfoResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                    <TrackMetaData>
+                        <DIDL-Lite>
+                            <dc:title>Test Song</dc:title>
+                            <dc:creator>Test Artist</dc:creator>
+                            <upnp:album>Test Album</upnp:album>
+                        </DIDL-Lite>
+                    </TrackMetaData>
+                    <RelTime>0:01:23</RelTime>
+                    <TrackDuration>0:04:56</TrackDuration>
+                </u:GetPositionInfoResponse>
+            </s:Body>
+        </s:Envelope>"#;
+
+    #[tokio::test]
+    async fn test_get_current_track_info() {
+        let mock_server = mockito::Server::new();
+        
+        // Setup mock response
+        let _m = mock("POST", "/MediaRenderer/AVTransport/Control")
+            .with_status(200)
+            .with_header("content-type", "text/xml")
+            .with_body(SAMPLE_SOAP_RESPONSE)
+            .create();
+
+        let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
+        
+        assert_eq!(result.title, "Test Song");
+        assert_eq!(result.artist, "Test Artist");
+        assert_eq!(result.album, "Test Album");
+        assert_eq!(result.position, "0:01:23");
+        assert_eq!(result.duration, "0:04:56");
+    }
+
+    #[test]
+    fn test_extract_didl_value() {
+        let xml = r#"<DIDL-Lite><dc:title>Test Song</dc:title></DIDL-Lite>"#;
+        let result = extract_didl_value(xml, "dc:title").unwrap();
+        assert_eq!(result, "Test Song");
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct SoapEnvelope {

@@ -106,9 +106,25 @@ async fn main() {
         }
     }
     
-    // Subscribe to events for the first discovered device
+    // Get track info and subscribe to events for the first discovered device
     if let Ok(devices) = discover_sonos_devices().await {
         if let Some(first_device) = devices.first() {
+            info!("Found Sonos device at: {}", first_device);
+            
+            // Get current track information
+            match sonos::get_current_track_info(first_device).await {
+                Ok(track_info) => {
+                    info!("Now Playing:");
+                    info!("Title: {}", track_info.title);
+                    info!("Artist: {}", track_info.artist);
+                    info!("Album: {}", track_info.album);
+                    info!("Duration: {}", track_info.duration);
+                    info!("Current Position: {}", track_info.position);
+                }
+                Err(e) => error!("Failed to get track info: {}", e),
+            }
+
+            // Subscribe to ongoing playback events
             info!("Subscribing to events for device: {}", first_device);
             if let Err(e) = sonos::subscribe_to_playback_events(first_device).await {
                 error!("Failed to subscribe to events: {}", e);

@@ -67,6 +67,32 @@ mod tests {
         let result = extract_didl_value(xml, "dc:title").unwrap();
         assert_eq!(result, "Test Song");
     }
+
+    #[test]
+    fn test_extract_didl_value_with_entities() {
+        let xml = r#"<DIDL-Lite><dc:title>Rock &amp; Roll</dc:title></DIDL-Lite>"#;
+        let result = extract_didl_value(xml, "dc:title").unwrap();
+        assert_eq!(result, "Rock & Roll");
+    }
+
+    #[test]
+    fn test_extract_didl_value_with_namespace() {
+        let xml = r#"<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Test</dc:title></DIDL-Lite>"#;
+        let result = extract_didl_value(xml, "dc:title").unwrap();
+        assert_eq!(result, "Test");
+    }
+
+    #[test]
+    fn test_extract_didl_value_missing_tag() {
+        let xml = r#"<DIDL-Lite><dc:other>Test</dc:other></DIDL-Lite>"#;
+        assert!(extract_didl_value(xml, "dc:title").is_err());
+    }
+
+    #[test]
+    fn test_extract_didl_value_malformed_xml() {
+        let xml = r#"<DIDL-Lite><dc:title>Test</wrongtag></DIDL-Lite>"#;
+        assert!(extract_didl_value(xml, "dc:title").is_err());
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,17 +222,51 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
     Ok(track_info)
 }
 
-/// Helper function to extract values from DIDL-Lite XML
+/// Helper function to extract values from DIDL-Lite XML with namespace support
 fn extract_didl_value(xml: &str, tag: &str) -> Result<String> {
-    let start_tag = format!("<{}>", tag);
-    let end_tag = format!("</{}>", tag);
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
     
-    let start = xml.find(&start_tag)
-        .ok_or_else(|| anyhow!("Could not find start tag: {}", tag))?;
-    let end = xml.find(&end_tag)
-        .ok_or_else(|| anyhow!("Could not find end tag: {}", tag))?;
+    let mut reader = Reader::from_str(xml);
+    reader.trim_text(true);
     
-    Ok(xml[start + start_tag.len()..end].to_string())
+    let mut buf = Vec::new();
+    let mut inside_target_tag = false;
+    let mut value = String::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = e.name();
+                // Handle both prefixed and unprefixed tags
+                if name.local_name().as_ref() == tag.split(':').last().unwrap_or(tag).as_bytes() {
+                    inside_target_tag = true;
+                }
+            },
+            Ok(Event::Text(e)) if inside_target_tag => {
+                value = e.unescape()
+                    .context("Failed to unescape XML text")?
+                    .to_string();
+                break;
+            },
+            Ok(Event::End(ref e)) => {
+                let name = e.name();
+                if name.local_name().as_ref() == tag.split(':').last().unwrap_or(tag).as_bytes() {
+                    inside_target_tag = false;
+                }
+            },
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(anyhow!("Error parsing XML: {}", e)),
+            _ => (),
+        }
+        buf.clear();
+    }
+
+    if value.is_empty() {
+        Err(anyhow!("Tag {} not found or empty", tag))
+    } else {
+        Ok(value)
+    }
 }
 
 async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {

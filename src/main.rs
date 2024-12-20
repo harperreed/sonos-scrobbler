@@ -1,14 +1,12 @@
 mod sonos;
 mod device_manager;
-mod discovery;  // Add this new module
+mod discovery;
 
 use dotenv::dotenv;
 use log::{info, error, warn};
-use crate::sonos::get_current_track_info;
 use crate::device_manager::DeviceManager;
-use crate::discovery::discover_sonos_devices;  // Use our new discovery
+use crate::discovery::{discover_sonos_devices, SonosDevice};
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
 use tokio::time;
 use anyhow::Result;
 
@@ -32,21 +30,14 @@ async fn main() -> Result<()> {
 
     while retry_count < MAX_RETRIES {
         info!("Discovery attempt {}/{}", retry_count + 1, MAX_RETRIES);
-        match discovery::discover_devices(
+        match discover_sonos_devices(
             Duration::from_secs(DISCOVERY_TIMEOUT_SECS),
             Duration::from_secs(RESPONSE_TIMEOUT_SECS)
         ).await {
             Ok(found_devices) => {
                 if !found_devices.is_empty() {
                     info!("Successfully found {} devices!", found_devices.len());
-                    // Convert rusty-sonos devices to our internal format
-                    devices = found_devices.into_iter()
-                        .map(|d| discovery::SonosDevice {
-                            ip_addr: d.ip().to_string(),
-                            room_name: d.room_name().to_string(),
-                            model_name: d.model_name().to_string(),
-                        })
-                        .collect();
+                    devices = found_devices;
                     break;
                 }
                 warn!("No devices found on attempt {}/{}", retry_count + 1, MAX_RETRIES);

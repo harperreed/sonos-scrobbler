@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
         
         ctrlc::set_handler(move || {
             if let Err(e) = tx.send(()) {
-                error!("Failed to send shutdown signal: {}", e);
+                error!("Failed to send shutdown signal: {:?}", e);
             }
         })?;
 

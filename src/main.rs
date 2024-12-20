@@ -26,8 +26,29 @@ async fn main() -> Result<()> {
     
     // Discover Sonos devices
     info!("Discovering Sonos devices...");
-    // Use 5 second timeout for both discovery and response
-    let devices = discovery::discover_devices(5000, 5000).await.map_err(anyhow::Error::msg)?;
+    // Increase timeouts: 10 seconds for discovery, 5 seconds for response
+    let mut retry_count = 0;
+    let max_retries = 3;
+    let mut devices = Vec::new();
+
+    while retry_count < max_retries {
+        match discovery::discover_devices(10000, 5000).await {
+            Ok(found_devices) => {
+                if !found_devices.is_empty() {
+                    devices = found_devices;
+                    break;
+                }
+                info!("No devices found, retrying... ({}/{})", retry_count + 1, max_retries);
+            }
+            Err(e) => {
+                error!("Discovery attempt failed: {}", e);
+            }
+        }
+        retry_count += 1;
+        if retry_count < max_retries {
+            time::sleep(Duration::from_secs(2)).await;
+        }
+    }
     
     if devices.is_empty() {
         info!("No Sonos devices found on the network");

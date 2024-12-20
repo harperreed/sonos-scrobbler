@@ -1,134 +1,62 @@
 use dotenv::dotenv;
-use log::{info, debug, error};
-use std::env;
-mod sonos;
+use log::{info, error};
+use rusty_sonos::discovery;
 use std::time::Duration;
-use futures_util::StreamExt;
-use ssdp_client::{SearchTarget, URN};
-use anyhow::{Result, Context};
+use tokio::time;
+use anyhow::Result;
 
 /// Initialize the logging system with environment-based configuration
 fn setup_logging() {
-    // Initialize env_logger with RUST_LOG environment variable
     env_logger::init();
 }
 
-/// Load and return configuration from environment variables
-fn load_config() -> String {
-    // Example of reading a configuration value
-    env::var("APP_NAME").unwrap_or_else(|_| "default_name".to_string())
-}
-
-/// Discover Sonos devices on the local network using SSDP
-/// Returns a vector of IP addresses of discovered Sonos devices
-async fn discover_sonos_devices() -> Result<Vec<String>> {
-    info!("Starting Sonos device discovery...");
-    
-    // Create SSDP search target for Sonos devices
-    // Sonos devices use the urn:schemas-upnp-org:device:ZonePlayer:1 search target
-    let search_target = SearchTarget::URN(
-        URN::device("schemas-upnp-org", "ZonePlayer", 1)
-    );
-    
-    // Configure search options
-    let timeout = Duration::from_secs(3);
-    
-    // Perform the SSDP search
-    let responses = ssdp_client::search(&search_target, timeout, 2)
-        .await
-        .context("Failed to perform SSDP search")?;
-    
-    // Extract IP addresses from responses
-    let responses = responses.collect::<Vec<_>>().await;
-    let devices: Vec<String> = responses
-        .into_iter()
-        .filter_map(|response| {
-            match response {
-                Ok(response) => {
-                    let location = response.location();
-                    if let Ok(url) = url::Url::parse(location) {
-                        if let Some(host) = url.host_str() {
-                            let host_string = host.to_string();
-                            if !host_string.is_empty() {
-                                Some(host_string)
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                },
-                Err(e) => {
-                    debug!("Error processing SSDP response: {}", e);
-                    None
-                }
-            }
-        })
-        .collect();
-    
-    info!("Found {} Sonos device(s)", devices.len());
-    for (i, ip) in devices.iter().enumerate() {
-        debug!("Device {}: {}", i + 1, ip);
-    }
-    
-    Ok(devices)
-}
-
 #[tokio::main]
-async fn main() {
-    // Load environment variables from .env file
+async fn main() -> Result<()> {
+    // Load environment variables and setup logging
     dotenv().ok();
-    
-    // Setup logging system
     setup_logging();
     
-    // Load configuration
-    let app_name = load_config();
-    
-    // Log some messages at different levels
-    debug!("Debug message - Configuration loaded");
-    info!("Starting {} application", app_name);
+    info!("Starting Sonos Scrobbler");
     
     // Discover Sonos devices
-    match discover_sonos_devices().await {
-        Ok(devices) => {
-            if devices.is_empty() {
-                info!("No Sonos devices found on the network");
-            } else {
-                info!("Successfully discovered Sonos devices");
+    info!("Discovering Sonos devices...");
+    let devices = discovery::discover_devices().await?;
+    
+    if devices.is_empty() {
+        info!("No Sonos devices found on the network");
+        return Ok(());
+    }
+    
+    info!("Found {} Sonos device(s)", devices.len());
+    
+    // Get the first device and monitor its playback
+    if let Some(device) = devices.first() {
+        let speaker = device.speaker().await?;
+        info!("Monitoring speaker: {}", device.name);
+        
+        let mut interval = time::interval(Duration::from_secs(5));
+        
+        loop {
+            interval.tick().await;
+            
+            match speaker.get_current_track().await {
+                Ok(track) => {
+                    if let Some(title) = track.title {
+                        info!("Now Playing: {}", title);
+                        if let Some(artist) = track.artist {
+                            info!("Artist: {}", artist);
+                        }
+                        if let Some(album) = track.album {
+                            info!("Album: {}", album);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to get track info: {}", e);
+                }
             }
-        }
-        Err(e) => {
-            error!("Failed to discover Sonos devices: {}", e);
         }
     }
     
-    // Get track info and subscribe to events for the first discovered device
-    if let Ok(devices) = discover_sonos_devices().await {
-        if let Some(first_device) = devices.first() {
-            info!("Found Sonos device at: {}", first_device);
-            
-            // Get current track information
-            match sonos::get_current_track_info(first_device).await {
-                Ok(track_info) => {
-                    info!("Now Playing:");
-                    info!("Title: {}", track_info.title);
-                    info!("Artist: {}", track_info.artist);
-                    info!("Album: {}", track_info.album);
-                    info!("Duration: {}", track_info.duration);
-                    info!("Current Position: {}", track_info.position);
-                }
-                Err(e) => error!("Failed to get track info: {}", e),
-            }
-
-            // Subscribe to ongoing playback events
-            info!("Subscribing to events for device: {}", first_device);
-            if let Err(e) = sonos::subscribe_to_playback_events(first_device).await {
-                error!("Failed to subscribe to events: {}", e);
-            }
-        }
-    }
+    Ok(())
 }

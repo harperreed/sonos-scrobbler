@@ -70,16 +70,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_current_track_info() {
-        let mut mock_server = mockito::Server::new();
-        
-        // Setup mock response
-        let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")
-            .with_status(200)
-            .with_header("content-type", "text/xml")
-            .with_body(SAMPLE_SOAP_RESPONSE)
-            .create();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut mock_server = mockito::Server::new();
+            
+            // Setup mock response
+            let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")
+                .with_status(200)
+                .with_header("content-type", "text/xml")
+                .with_body(SAMPLE_SOAP_RESPONSE)
+                .create();
 
-        let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
+            let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
         
         assert_eq!(result.title, "Test Song");
         assert_eq!(result.artist, "Test Artist");
@@ -117,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_extract_didl_value_malformed_xml() {
-        let xml = r#"<DIDL-Lite><dc:title>Test</wrongtag></DIDL-Lite>"#;
+        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title><malformed>"#;
         assert!(extract_didl_value(xml, "dc:title").is_err());
     }
 }

@@ -4,19 +4,48 @@ use serde::Deserialize;
 use std::time::Duration;
 use std::io::BufReader;
 
-/// Represents detailed track information from a Sonos device
-#[derive(Debug, Deserialize)]
-pub struct TrackInfo {
-    #[serde(rename = "Track")]
-    pub title: String,
-    #[serde(rename = "Artist")]
-    pub artist: String,
-    #[serde(rename = "Album")]
-    pub album: String,
-    #[serde(rename = "TrackDuration")]
-    pub duration: String,
-    #[serde(rename = "RelTime")]
+/// Common response structure for Sonos track information
+#[derive(Debug)]
+pub struct SonosResponse {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
     pub position: String,
+    pub duration: String,
+}
+
+/// Represents detailed track information from a Sonos device
+#[derive(Debug)]
+pub struct TrackInfo {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub duration: String,
+    pub position: String,
+}
+
+impl From<SonosResponse> for TrackInfo {
+    fn from(response: SonosResponse) -> Self {
+        Self {
+            title: response.title.unwrap_or_else(|| "Unknown Title".to_string()),
+            artist: response.artist.unwrap_or_else(|| "Unknown Artist".to_string()),
+            album: response.album.unwrap_or_else(|| "Unknown Album".to_string()),
+            duration: response.duration,
+            position: response.position,
+        }
+    }
+}
+
+impl From<SonosResponse> for PlaybackState {
+    fn from(response: SonosResponse) -> Self {
+        Self {
+            title: response.title,
+            artist: response.artist,
+            album: response.album,
+            position: Some(response.position),
+            duration: Some(response.duration),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -174,52 +203,8 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
     let client = reqwest::Client::new();
     let base_url = format!("http://{}:1400", device_ip);
     
-    // SOAP request to get current track info
-    let soap_body = r#"<?xml version="1.0"?>
-        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
-            <s:Body>
-                <u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
-                    <InstanceID>0</InstanceID>
-                </u:GetPositionInfo>
-            </s:Body>
-        </s:Envelope>"#;
-
-    debug!("Sending SOAP request to {}", base_url);
-    
-    let response = client
-        .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
-        .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
-        .header("Content-Type", "text/xml")
-        .body(soap_body)
-        .send()
-        .await
-        .context("Failed to send request to Sonos device")?;
-
-    let response_text = response.text().await?;
-    debug!("Received SOAP response: {}", response_text);
-    
-    // Parse the full response into our response structure
-    // Parse the SOAP response with namespace awareness
-    let reader = BufReader::new(response_text.as_bytes());
-    let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
-        .context("Failed to parse SOAP envelope")?;
-
-    // The track metadata is embedded as an escaped XML string, we need to unescape it
-    let track_metadata = envelope.body.position_info_response.track_meta_data;
-    
-    // Parse the track metadata XML
-    let track_info = TrackInfo {
-        title: extract_didl_value(&track_metadata, "dc:title")
-            .unwrap_or_else(|_| "Unknown Title".to_string()),
-        artist: extract_didl_value(&track_metadata, "dc:creator")
-            .unwrap_or_else(|_| "Unknown Artist".to_string()),
-        album: extract_didl_value(&track_metadata, "upnp:album")
-            .unwrap_or_else(|_| "Unknown Album".to_string()),
-        duration: envelope.body.position_info_response.track_duration,
-        position: envelope.body.position_info_response.rel_time,
-    };
-
-    Ok(track_info)
+    let sonos_response = get_sonos_info(&client, &base_url).await?;
+    Ok(TrackInfo::from(sonos_response))
 }
 
 /// Helper function to extract values from DIDL-Lite XML with namespace support
@@ -269,8 +254,8 @@ fn extract_didl_value(xml: &str, tag: &str) -> Result<String> {
     }
 }
 
-async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {
-    // SOAP request to get current track info
+/// Make a SOAP request to get current track information
+async fn get_sonos_info(client: &reqwest::Client, base_url: &str) -> Result<SonosResponse> {
     let soap_body = r#"<?xml version="1.0"?>
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
             <s:Body>
@@ -290,42 +275,35 @@ async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) ->
         .context("Failed to send request to Sonos device")?;
 
     let response_text = response.text().await?;
-    
-    // Log the raw response for debugging
     debug!("Raw SOAP response: {}", response_text);
     
-    // Parse the SOAP response
     let reader = BufReader::new(response_text.as_bytes());
     let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
-        .context(format!("Failed to parse SOAP envelope: {}", response_text))?;
+        .context("Failed to parse SOAP envelope")?;
 
-    // Log parsed envelope for debugging
-    debug!("Parsed envelope: {:?}", envelope);
-
-    // Extract track metadata
     let track_metadata = envelope.body.position_info_response.track_meta_data;
     
-    // Handle empty metadata case
-    if track_metadata.trim().is_empty() {
+    let (title, artist, album) = if track_metadata.trim().is_empty() {
         debug!("Empty track metadata received");
-        return Ok(PlaybackState {
-            title: None,
-            artist: None,
-            album: None,
-            position: Some(envelope.body.position_info_response.rel_time),
-            duration: Some(envelope.body.position_info_response.track_duration),
-        });
-    }
-    
-    // Create PlaybackState from parsed data
-    let state = PlaybackState {
-        title: extract_didl_value(&track_metadata, "dc:title").ok(),
-        artist: extract_didl_value(&track_metadata, "dc:creator").ok(),
-        album: extract_didl_value(&track_metadata, "upnp:album").ok(),
-        position: Some(envelope.body.position_info_response.rel_time),
-        duration: Some(envelope.body.position_info_response.track_duration),
+        (None, None, None)
+    } else {
+        (
+            extract_didl_value(&track_metadata, "dc:title").ok(),
+            extract_didl_value(&track_metadata, "dc:creator").ok(),
+            extract_didl_value(&track_metadata, "upnp:album").ok(),
+        )
     };
-    
-    debug!("Parsed playback state: {:?}", state);
-    Ok(state)
+
+    Ok(SonosResponse {
+        title,
+        artist,
+        album,
+        position: envelope.body.position_info_response.rel_time,
+        duration: envelope.body.position_info_response.track_duration,
+    })
+}
+
+async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {
+    let sonos_response = get_sonos_info(client, base_url).await?;
+    Ok(PlaybackState::from(sonos_response))
 }

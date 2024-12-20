@@ -167,7 +167,7 @@ async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) ->
             </s:Body>
         </s:Envelope>"#;
 
-    let _response = client
+    let response = client
         .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
         .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
         .header("Content-Type", "text/xml")
@@ -176,13 +176,22 @@ async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) ->
         .await
         .context("Failed to send request to Sonos device")?;
 
-    // For now, return a placeholder state
-    // In a real implementation, parse the SOAP response
+    let response_text = response.text().await?;
+    
+    // Parse the SOAP response
+    let reader = BufReader::new(response_text.as_bytes());
+    let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
+        .context("Failed to parse SOAP envelope")?;
+
+    // Extract track metadata
+    let track_metadata = envelope.body.position_info_response.track_meta_data;
+    
+    // Create PlaybackState from parsed data
     Ok(PlaybackState {
-        title: Some("Sample Track".to_string()),
-        artist: Some("Sample Artist".to_string()),
-        album: Some("Sample Album".to_string()),
-        position: Some("00:00:00".to_string()),
-        duration: Some("00:03:30".to_string()),
+        title: extract_didl_value(&track_metadata, "dc:title").ok(),
+        artist: extract_didl_value(&track_metadata, "dc:creator").ok(),
+        album: extract_didl_value(&track_metadata, "upnp:album").ok(),
+        position: Some(envelope.body.position_info_response.rel_time),
+        duration: Some(envelope.body.position_info_response.track_duration),
     })
 }

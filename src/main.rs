@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 use log::{info, error};
-use rusty_sonos::discovery;
+use rusty_sonos::{discovery, Speaker};
 use std::time::Duration;
 use tokio::time;
 use anyhow::Result;
@@ -20,7 +20,8 @@ async fn main() -> Result<()> {
     
     // Discover Sonos devices
     info!("Discovering Sonos devices...");
-    let devices = discovery::discover_devices().await?;
+    // Use 5 second timeout for both discovery and response
+    let devices = discovery::discover_devices(5000, 5000).await.map_err(anyhow::Error::msg)?;
     
     if devices.is_empty() {
         info!("No Sonos devices found on the network");
@@ -31,8 +32,8 @@ async fn main() -> Result<()> {
     
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {
-        let speaker = device.speaker().await?;
-        info!("Monitoring speaker: {}", device.name);
+        let speaker = Speaker::new(device.ip_addr.clone());
+        info!("Monitoring speaker: {}", device.room_name);
         
         let mut interval = time::interval(Duration::from_secs(5));
         

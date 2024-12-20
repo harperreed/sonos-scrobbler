@@ -35,8 +35,9 @@ async fn main() -> Result<()> {
     
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {
-        info!("Monitoring speaker: {}", device.room_name);
+        info!("Monitoring speaker: {} at {}", device.room_name, device.ip_addr);
         let ip = device.ip_addr.to_string();
+        debug!("Using device IP: {}", ip);
         
         let mut interval = time::interval(Duration::from_secs(5));
         

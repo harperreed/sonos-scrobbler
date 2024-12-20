@@ -108,6 +108,8 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
             </s:Body>
         </s:Envelope>"#;
 
+    debug!("Sending SOAP request to {}", base_url);
+    
     let response = client
         .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
         .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
@@ -118,6 +120,7 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
         .context("Failed to send request to Sonos device")?;
 
     let response_text = response.text().await?;
+    debug!("Received SOAP response: {}", response_text);
     
     // Parse the full response into our response structure
     // Parse the SOAP response with namespace awareness

@@ -7,6 +7,7 @@ use rusty_sonos::discovery;
 use crate::sonos::get_current_track_info;
 use crate::device_manager::DeviceManager;
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
 use tokio::time;
 use anyhow::Result;
 
@@ -45,10 +46,14 @@ async fn main() -> Result<()> {
 
         // Setup signal handling for graceful shutdown
         let (tx, mut rx) = tokio::sync::oneshot::channel();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+        let tx_clone = tx.clone();
         
         ctrlc::set_handler(move || {
-            if let Err(e) = tx.send(()) {
-                error!("Failed to send shutdown signal: {:?}", e);
+            if let Some(tx) = tx_clone.lock().unwrap().take() {
+                if let Err(e) = tx.send(()) {
+                    error!("Failed to send shutdown signal: {:?}", e);
+                }
             }
         })?;
 

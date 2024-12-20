@@ -19,9 +19,9 @@ pub async fn discover_sonos_devices(
     
     Ok(devices.into_iter()
         .map(|d| SonosDevice {
-            ip_addr: d.ip_addr,
+            ip_addr: d.ip_addr.to_string(),
             room_name: d.room_name,
-            model_name: d.model,
+            model_name: d.friendly_name,
         })
         .collect())
 }

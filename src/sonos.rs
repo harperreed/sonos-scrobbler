@@ -1,5 +1,5 @@
 use anyhow::{Result, Context};
-use log::{debug, error, info};
+use log::{error, info};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -61,7 +61,7 @@ async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) ->
             </s:Body>
         </s:Envelope>"#;
 
-    let response = client
+    let _response = client
         .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
         .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
         .header("Content-Type", "text/xml")

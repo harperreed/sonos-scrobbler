@@ -6,7 +6,6 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use ssdp_client::{SearchTarget, URN};
 use anyhow::{Result, Context};
-use url::Url;
 
 /// Initialize the logging system with environment-based configuration
 fn setup_logging() {
@@ -107,5 +106,13 @@ async fn main() {
         }
     }
     
-    info!("Application completed");
+    // Subscribe to events for the first discovered device
+    if let Ok(devices) = discover_sonos_devices().await {
+        if let Some(first_device) = devices.first() {
+            info!("Subscribing to events for device: {}", first_device);
+            if let Err(e) = sonos::subscribe_to_playback_events(first_device).await {
+                error!("Failed to subscribe to events: {}", e);
+            }
+        }
+    }
 }

@@ -71,12 +71,11 @@ impl LastFm {
 
     /// Scrobble a track to Last.fm
     pub async fn scrobble(&self, artist: &str, title: &str, album: Option<&str>) -> Result<()> {
-        let mut scrobble = Scrobble::new(artist, title, "");
-        
-        // Create scrobble with album if provided
-        if let Some(album_name) = album {
-            scrobble.album = album_name.to_string();
-        }
+        let scrobble = if let Some(album_name) = album {
+            Scrobble::new(artist, title, album_name)
+        } else {
+            Scrobble::new(artist, title, "")
+        };
 
         match self.scrobbler.scrobble(&scrobble) {
             Ok(_) => {

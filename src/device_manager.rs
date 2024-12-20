@@ -49,7 +49,7 @@ impl DeviceManager {
                 self.state = ConnectionState::Connected;
                 self.retry_count = 0;
                 // Initialize speaker
-                self.speaker = Some(Speaker::new(&self.ip_addr).await?);
+                self.speaker = Some(Speaker::new(&self.ip_addr).await.map_err(anyhow::Error::msg)?);
                 Ok(())
             }
             Err(e) => {

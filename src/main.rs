@@ -1,3 +1,5 @@
+mod sonos;
+
 use dotenv::dotenv;
 use log::{info, error};
 use rusty_sonos::discovery;

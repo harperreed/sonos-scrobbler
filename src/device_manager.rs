@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use log::{error, info, warn};
-use rusty_sonos::discovery;
+use rusty_sonos::{discovery, speaker::Speaker};
 use std::time::Duration;
 use tokio::time;
 
@@ -19,6 +19,7 @@ pub struct DeviceManager {
     ip_addr: String,
     room_name: String,
     state: ConnectionState,
+    speaker: Option<Speaker>,
     retry_count: u32,
     max_retries: u32,
 }
@@ -31,6 +32,7 @@ impl DeviceManager {
             state: ConnectionState::Disconnected,
             retry_count: 0,
             max_retries: MAX_RETRIES,
+            speaker: None,
         }
     }
 
@@ -46,6 +48,8 @@ impl DeviceManager {
                 info!("Successfully connected to device {}", self.room_name);
                 self.state = ConnectionState::Connected;
                 self.retry_count = 0;
+                // Initialize speaker
+                self.speaker = Some(Speaker::new(&self.ip_addr));
                 Ok(())
             }
             Err(e) => {
@@ -162,5 +166,28 @@ impl DeviceManager {
 
     pub fn get_state(&self) -> &ConnectionState {
         &self.state
+    }
+
+    pub async fn get_current_track(&self) -> Result<()> {
+        if let Some(speaker) = &self.speaker {
+            match speaker.get_current_track().await {
+                Ok(track) => {
+                    if !track.title.is_empty() {
+                        info!(
+                            "[{}] Now playing: {} - {} (from {})",
+                            self.room_name, track.artist, track.title, track.album
+                        );
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    warn!("Failed to get track info: {}", e);
+                    Ok(())
+                }
+            }
+        } else {
+            warn!("Speaker not initialized");
+            Ok(())
+        }
     }
 }

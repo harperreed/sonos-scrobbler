@@ -74,12 +74,19 @@ async fn main() -> Result<()> {
     // Rest of the code remains the same...
     if let Some(device) = devices.first() {
         info!("Monitoring speaker: {} at {}", device.room_name, device.ip_addr);
-        let _device_manager = DeviceManager::new(
+        let mut device_manager = DeviceManager::new(
             device.ip_addr.clone(),
             device.room_name.clone(),
         );
 
-        // ... (rest of the main function)
+        device_manager.connect().await?;
+
+        loop {
+            if device_manager.check_connection().await {
+                device_manager.get_current_track().await?;
+            }
+            time::sleep(Duration::from_secs(5)).await;
+        }
     }
     
     Ok(())

@@ -20,24 +20,23 @@ pub struct TrackInfo {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct SoapEnvelope {
-    #[serde(rename = "Body")]
+    #[serde(rename = "s:Body")]
     body: SoapBody,
 }
 
 #[derive(Debug, Deserialize)]
 struct SoapBody {
-    #[serde(rename = "GetPositionInfoResponse")]
+    #[serde(rename = "u:GetPositionInfoResponse")]
     position_info_response: PositionInfo,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct PositionInfo {
-    #[serde(rename = "TrackMetaData")]
-    track_metadata: String,
-    #[serde(rename = "RelTime")]
+    track_meta_data: String,
     rel_time: String,
-    #[serde(rename = "TrackDuration")]
     track_duration: String,
 }
 
@@ -121,11 +120,16 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
     let response_text = response.text().await?;
     
     // Parse the full response into our response structure
-    let envelope: SoapEnvelope = from_str(&response_text)
+    // Configure XML parser to handle namespaces
+    let mut reader = quick_xml::Reader::from_str(&response_text);
+    reader.trim_text(true);
+    
+    // Parse with namespace awareness
+    let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
         .context("Failed to parse SOAP envelope")?;
 
     // The track metadata is embedded as an escaped XML string, we need to unescape it
-    let track_metadata = envelope.body.position_info_response.track_metadata;
+    let track_metadata = envelope.body.position_info_response.track_meta_data;
     
     // Parse the track metadata XML
     let track_info = TrackInfo {

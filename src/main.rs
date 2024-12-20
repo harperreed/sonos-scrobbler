@@ -1,6 +1,7 @@
 mod sonos;
 mod device_manager;
 mod discovery;
+mod lastfm;
 
 use dotenv::dotenv;
 use log::{info, error, warn};

@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 use log::{info, error};
-use rusty_sonos::{discovery, Speaker};
+use rusty_sonos::{discovery, speaker::Speaker};
 use std::time::Duration;
 use tokio::time;
 use anyhow::Result;

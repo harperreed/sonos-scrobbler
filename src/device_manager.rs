@@ -144,29 +144,6 @@ impl DeviceManager {
         false
     }
 
-    pub fn get_ip(&self) -> &str {
-        &self.ip_addr
-    }
-
-    pub fn is_connected(&self) -> bool {
-        matches!(self.state, ConnectionState::Connected)
-    }
-
-    pub async fn cleanup(&mut self) {
-        info!("Cleaning up device manager for {}", self.room_name);
-        // Ensure we're marked as disconnected
-        self.state = ConnectionState::Disconnected;
-        // Add a small delay to allow any pending operations to complete
-        time::sleep(Duration::from_millis(100)).await;
-    }
-
-    pub fn get_room_name(&self) -> &str {
-        &self.room_name
-    }
-
-    pub fn get_state(&self) -> &ConnectionState {
-        &self.state
-    }
 
     pub async fn get_current_track(&self) -> Result<Option<(String, String, Option<String>)>> {
         if let Some(speaker) = &self.speaker {

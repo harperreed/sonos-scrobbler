@@ -4,13 +4,6 @@ use rustfm_scrobble::{Scrobble, Scrobbler};
 use std::env;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum LastFmError {
-    #[error("Missing Last.fm credentials in environment")]
-    MissingCredentials(String),
-    #[error("Authentication failed")]
-    AuthenticationError(String),
-}
 
 /// Represents authenticated Last.fm credentials
 pub struct LastFmAuth {

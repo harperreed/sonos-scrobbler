@@ -15,26 +15,6 @@ pub struct SonosResponse {
 }
 
 /// Represents detailed track information from a Sonos device
-#[derive(Debug)]
-pub struct TrackInfo {
-    pub title: String,
-    pub artist: String,
-    pub album: String,
-    pub duration: String,
-    pub position: String,
-}
-
-impl From<SonosResponse> for TrackInfo {
-    fn from(response: SonosResponse) -> Self {
-        Self {
-            title: response.title.unwrap_or_else(|| "Unknown Title".to_string()),
-            artist: response.artist.unwrap_or_else(|| "Unknown Artist".to_string()),
-            album: response.album.unwrap_or_else(|| "Unknown Album".to_string()),
-            duration: response.duration,
-            position: response.position,
-        }
-    }
-}
 
 impl From<SonosResponse> for PlaybackState {
     fn from(response: SonosResponse) -> Self {
@@ -153,41 +133,6 @@ pub struct PlaybackState {
     pub duration: Option<String>,
 }
 
-/// Subscribe to playback events from a Sonos device
-/// 
-/// This function sets up a polling mechanism to periodically check
-/// the playback state of a Sonos device at the specified IP address.
-/// 
-/// # Arguments
-/// * `device_ip` - IP address of the Sonos device
-/// 
-/// # Returns
-/// A Result containing a stream of PlaybackState updates
-pub async fn subscribe_to_playback_events(device_ip: &str) -> Result<()> {
-    let client = reqwest::Client::new();
-    let base_url = format!("http://{}:1400", device_ip);
-    
-    // Poll the device every 5 seconds for updates
-    let mut interval = tokio::time::interval(Duration::from_secs(5));
-    
-    loop {
-        interval.tick().await;
-        
-        match get_current_playback_state(&client, &base_url).await {
-            Ok(state) => {
-                if let Some(title) = &state.title {
-                    info!("Now playing: {}", title);
-                    if let Some(artist) = &state.artist {
-                        info!("Artist: {}", artist);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to get playback state: {}", e);
-            }
-        }
-    }
-}
 
 /// Get the current playback state from a Sonos device
 /// Get current track information from a Sonos device

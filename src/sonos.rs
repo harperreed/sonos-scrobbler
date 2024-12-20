@@ -70,25 +70,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_current_track_info() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut mock_server = mockito::Server::new();
-            
-            // Setup mock response
-            let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")
-                .with_status(200)
-                .with_header("content-type", "text/xml")
-                .with_body(SAMPLE_SOAP_RESPONSE)
-                .create();
+        let mut mock_server = mockito::Server::new();
+        
+        // Setup mock response
+        let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")
+            .with_status(200)
+            .with_header("content-type", "text/xml")
+            .with_body(SAMPLE_SOAP_RESPONSE)
+            .create();
 
-            let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
-            
-            assert_eq!(result.title, "Test Song");
-            assert_eq!(result.artist, "Test Artist");
-            assert_eq!(result.album, "Test Album");
-            assert_eq!(result.position, "0:01:23");
-            assert_eq!(result.duration, "0:04:56");
-        });
+        let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
+        
+        assert_eq!(result.title, "Test Song");
+        assert_eq!(result.artist, "Test Artist");
+        assert_eq!(result.album, "Test Album");
+        assert_eq!(result.position, "0:01:23");
+        assert_eq!(result.duration, "0:04:56");
     }
 
     #[test]
@@ -120,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_extract_didl_value_malformed_xml() {
-        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title><malformed>"#;
+        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title></DIDL-Lite"#;  // Missing closing angle bracket
         assert!(extract_didl_value(xml, "dc:title").is_err());
     }
 }

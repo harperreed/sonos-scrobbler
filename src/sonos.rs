@@ -1,5 +1,5 @@
 use anyhow::{Result, Context, anyhow};
-use log::{error, info};
+use log::{error, info, debug};
 use serde::Deserialize;
 use std::time::Duration;
 use std::io::BufReader;
@@ -178,20 +178,41 @@ async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) ->
 
     let response_text = response.text().await?;
     
+    // Log the raw response for debugging
+    debug!("Raw SOAP response: {}", response_text);
+    
     // Parse the SOAP response
     let reader = BufReader::new(response_text.as_bytes());
     let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
-        .context("Failed to parse SOAP envelope")?;
+        .context(format!("Failed to parse SOAP envelope: {}", response_text))?;
+
+    // Log parsed envelope for debugging
+    debug!("Parsed envelope: {:?}", envelope);
 
     // Extract track metadata
     let track_metadata = envelope.body.position_info_response.track_meta_data;
     
+    // Handle empty metadata case
+    if track_metadata.trim().is_empty() {
+        debug!("Empty track metadata received");
+        return Ok(PlaybackState {
+            title: None,
+            artist: None,
+            album: None,
+            position: Some(envelope.body.position_info_response.rel_time),
+            duration: Some(envelope.body.position_info_response.track_duration),
+        });
+    }
+    
     // Create PlaybackState from parsed data
-    Ok(PlaybackState {
+    let state = PlaybackState {
         title: extract_didl_value(&track_metadata, "dc:title").ok(),
         artist: extract_didl_value(&track_metadata, "dc:creator").ok(),
         album: extract_didl_value(&track_metadata, "upnp:album").ok(),
         position: Some(envelope.body.position_info_response.rel_time),
         duration: Some(envelope.body.position_info_response.track_duration),
-    })
+    };
+    
+    debug!("Parsed playback state: {:?}", state);
+    Ok(state)
 }

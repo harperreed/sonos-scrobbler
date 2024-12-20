@@ -1,7 +1,6 @@
 use anyhow::{Result, Context, anyhow};
-use log::{error, info, debug};
+use log::debug;
 use serde::Deserialize;
-use std::time::Duration;
 use std::io::BufReader;
 
 /// Common response structure for Sonos track information
@@ -142,12 +141,12 @@ pub struct PlaybackState {
 ///
 /// # Returns
 /// Result containing track information including title, artist, album and timing
-pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
+pub async fn get_current_track_info(device_ip: &str) -> Result<PlaybackState> {
     let client = reqwest::Client::new();
     let base_url = format!("http://{}:1400", device_ip);
     
     let sonos_response = get_sonos_info(&client, &base_url).await?;
-    Ok(TrackInfo::from(sonos_response))
+    Ok(PlaybackState::from(sonos_response))
 }
 
 /// Helper function to extract values from DIDL-Lite XML with namespace support

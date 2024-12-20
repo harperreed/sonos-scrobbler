@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use log::{info, error};
-use rusty_sonos::{discovery, speaker::Speaker};
+use rusty_sonos::discovery;
+use crate::sonos::get_current_track_info;
 use std::time::Duration;
 use tokio::time;
 use anyhow::Result;
@@ -32,28 +33,20 @@ async fn main() -> Result<()> {
     
     // Get the first device and monitor its playback
     if let Some(device) = devices.first() {
-        let speaker = Speaker::new(&device.ip_addr.to_string()).await.map_err(anyhow::Error::msg)?;
         info!("Monitoring speaker: {}", device.room_name);
+        let ip = device.ip_addr.to_string();
         
         let mut interval = time::interval(Duration::from_secs(5));
         
         loop {
             interval.tick().await;
             
-            match speaker.get_current_track().await {
+            match get_current_track_info(&ip).await {
                 Ok(track) => {
-                    info!("Track info: {:?}", track);
-                    match track.title {
-                        Some(title) => {
-                            info!("Now Playing: {}", title);
-                            if let Some(artist) = track.artist {
-                                info!("Artist: {}", artist);
-                            }
-                        }
-                        None => {
-                            info!("No title available in track info");
-                        }
-                    }
+                    info!("Now Playing: {}", track.title);
+                    info!("Artist: {}", track.artist);
+                    info!("Album: {}", track.album);
+                    info!("Position: {} / {}", track.position, track.duration);
                 }
                 Err(e) => {
                     error!("Failed to get track info: {}", e);

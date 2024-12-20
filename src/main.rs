@@ -43,29 +43,54 @@ async fn main() -> Result<()> {
             device.room_name.clone(),
         );
 
-        device_manager.connect().await?;
+        // Setup signal handling for graceful shutdown
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        
+        ctrlc::set_handler(move || {
+            if let Err(e) = tx.send(()) {
+                error!("Failed to send shutdown signal: {}", e);
+            }
+        })?;
+
+        if let Err(e) = device_manager.connect().await {
+            error!("Failed to connect to device: {}", e);
+            return Ok(());
+        }
+
         let mut interval = time::interval(Duration::from_secs(5));
         
         loop {
-            interval.tick().await;
-            
-            if !device_manager.check_connection().await {
-                error!("Lost connection to device and unable to reconnect");
-                break;
-            }
+            tokio::select! {
+                _ = interval.tick() => {
+                    if !device_manager.check_connection().await {
+                        error!("Lost connection to device {} and unable to reconnect", device_manager.get_room_name());
+                        break;
+                    }
 
-            match get_current_track_info(device_manager.get_ip()).await {
-                Ok(track) => {
-                    info!("Now Playing: {}", track.title);
-                    info!("Artist: {}", track.artist);
-                    info!("Album: {}", track.album);
-                    info!("Position: {} / {}", track.position, track.duration);
+                    info!("Device state: {:?}", device_manager.get_state());
+
+                    match get_current_track_info(device_manager.get_ip()).await {
+                        Ok(track) => {
+                            info!("Now Playing: {}", track.title);
+                            info!("Artist: {}", track.artist);
+                            info!("Album: {}", track.album);
+                            info!("Position: {} / {}", track.position, track.duration);
+                        }
+                        Err(e) => {
+                            error!("Failed to get track info: {}", e);
+                        }
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to get track info: {}", e);
+                _ = &mut rx => {
+                    info!("Received shutdown signal");
+                    break;
                 }
             }
         }
+
+        // Cleanup before exit
+        device_manager.cleanup().await;
+        info!("Shutdown complete");
     }
     
     Ok(())

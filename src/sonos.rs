@@ -2,7 +2,7 @@ use anyhow::{Result, Context, anyhow};
 use log::{error, info};
 use serde::Deserialize;
 use std::time::Duration;
-use quick_xml::de::from_str;
+use std::io::BufReader;
 
 /// Represents detailed track information from a Sonos device
 #[derive(Debug, Deserialize)]
@@ -120,11 +120,8 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
     let response_text = response.text().await?;
     
     // Parse the full response into our response structure
-    // Configure XML parser to handle namespaces
-    let mut reader = quick_xml::Reader::from_str(&response_text);
-    reader.trim_text(true);
-    
-    // Parse with namespace awareness
+    // Parse the SOAP response with namespace awareness
+    let reader = BufReader::new(response_text.as_bytes());
     let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
         .context("Failed to parse SOAP envelope")?;
 

@@ -1,4 +1,4 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use rusty_sonos::discovery::discover_devices;
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ pub async fn discover_sonos_devices(
     let devices = discover_devices(
         discovery_timeout.as_secs(),
         response_timeout.as_secs()
-    ).await.context("Failed to discover devices")?;
+    ).await.map_err(|e| anyhow::anyhow!("Failed to discover devices: {}", e))?;
     
     Ok(devices.into_iter()
         .map(|d| SonosDevice {

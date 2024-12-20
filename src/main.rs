@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
     // Rest of the code remains the same...
     if let Some(device) = devices.first() {
         info!("Monitoring speaker: {} at {}", device.room_name, device.ip_addr);
-        let device_manager = DeviceManager::new(
+        let _device_manager = DeviceManager::new(
             device.ip_addr.clone(),
             device.room_name.clone(),
         );

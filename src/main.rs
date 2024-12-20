@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             
-            match speaker.get_current_track() {
+            match speaker.get_current_track().await {
                 Ok(track) => {
                     if let Some(title) = track.title {
                         info!("Now Playing: {}", title);

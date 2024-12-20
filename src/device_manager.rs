@@ -49,7 +49,7 @@ impl DeviceManager {
                 self.state = ConnectionState::Connected;
                 self.retry_count = 0;
                 // Initialize speaker
-                self.speaker = Some(Speaker::new(&self.ip_addr));
+                self.speaker = Some(Speaker::new(&self.ip_addr).await?);
                 Ok(())
             }
             Err(e) => {
@@ -172,10 +172,11 @@ impl DeviceManager {
         if let Some(speaker) = &self.speaker {
             match speaker.get_current_track().await {
                 Ok(track) => {
-                    if !track.title.is_empty() {
+                    if let Some(title) = &track.title {
+                        let artist = track.artist.as_deref().unwrap_or("Unknown Artist");
                         info!(
-                            "[{}] Now playing: {} - {} (from {})",
-                            self.room_name, track.artist, track.title, track.album
+                            "[{}] Now playing: {} - {}",
+                            self.room_name, artist, title
                         );
                     }
                     Ok(())

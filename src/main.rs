@@ -38,10 +38,20 @@ async fn discover_sonos_devices() -> Result<Vec<String>> {
         .context("Failed to perform SSDP search")?;
     
     // Extract IP addresses from responses
+    let responses = responses.collect::<Vec<_>>().await;
     let devices: Vec<String> = responses
-        .collect::<Vec<_>>()
-        .await
-        .iter()
+        .into_iter()
+        .filter_map(|response| {
+            match response {
+                Ok(response) => response.location()
+                    .and_then(|url| url.host_str())
+                    .map(|host| host.to_string()),
+                Err(e) => {
+                    debug!("Error processing SSDP response: {}", e);
+                    None
+                }
+            }
+        })
         .filter_map(|response| {
             response.location()
                 .and_then(|url| url.host_str())

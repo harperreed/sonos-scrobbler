@@ -2,7 +2,7 @@ mod sonos;
 mod device_manager;
 
 use dotenv::dotenv;
-use log::{debug, info, error};
+use log::{info, error};
 use rusty_sonos::discovery;
 use crate::sonos::get_current_track_info;
 use crate::device_manager::DeviceManager;

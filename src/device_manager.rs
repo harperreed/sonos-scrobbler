@@ -1,5 +1,5 @@
 use anyhow::{Result, Context};
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use std::time::Duration;
 use tokio::time;
 use rusty_sonos::discovery;

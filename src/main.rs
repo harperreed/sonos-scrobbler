@@ -5,6 +5,7 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use ssdp_client::{SearchTarget, URN};
 use anyhow::{Result, Context};
+use url::Url;
 
 /// Initialize the logging system with environment-based configuration
 fn setup_logging() {

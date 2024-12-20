@@ -42,10 +42,16 @@ async fn main() -> Result<()> {
             
             match speaker.get_current_track().await {
                 Ok(track) => {
-                    if let Some(title) = track.title {
-                        info!("Now Playing: {}", title);
-                        if let Some(artist) = track.artist {
-                            info!("Artist: {}", artist);
+                    info!("Track info: {:?}", track);
+                    match track.title {
+                        Some(title) => {
+                            info!("Now Playing: {}", title);
+                            if let Some(artist) = track.artist {
+                                info!("Artist: {}", artist);
+                            }
+                        }
+                        None => {
+                            info!("No title available in track info");
                         }
                     }
                 }

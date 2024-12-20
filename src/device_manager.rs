@@ -168,7 +168,7 @@ impl DeviceManager {
         &self.state
     }
 
-    pub async fn get_current_track(&self) -> Result<()> {
+    pub async fn get_current_track(&self) -> Result<Option<(String, String, Option<String>)>> {
         if let Some(speaker) = &self.speaker {
             match speaker.get_current_track().await {
                 Ok(track) => {
@@ -178,17 +178,23 @@ impl DeviceManager {
                             "[{}] Now playing: {} - {}",
                             self.room_name, artist, title
                         );
+                        Ok(Some((
+                            artist.to_string(),
+                            title.to_string(),
+                            track.album,
+                        )))
+                    } else {
+                        Ok(None)
                     }
-                    Ok(())
                 }
                 Err(e) => {
                     warn!("Failed to get track info: {}", e);
-                    Ok(())
+                    Ok(None)
                 }
             }
         } else {
             warn!("Speaker not initialized");
-            Ok(())
+            Ok(None)
         }
     }
 }

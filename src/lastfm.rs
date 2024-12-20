@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use log::{info, warn};
-use rustfm_scrobble::Scrobbler;
+use log::{error, info, warn};
+use rustfm_scrobble::{Scrobble, Scrobbler};
 use std::env;
 use thiserror::Error;
 
@@ -8,54 +8,86 @@ use thiserror::Error;
 pub enum LastFmError {
     #[error("Missing Last.fm credentials in environment")]
     MissingCredentials(String),
+    #[error("Authentication failed")]
+    AuthenticationError(String),
 }
 
 /// Represents authenticated Last.fm credentials
 pub struct LastFmAuth {
+    username: String,
+    password: String,
     api_key: String,
     api_secret: String,
-    session_key: String,
 }
 
 impl LastFmAuth {
     /// Create a new LastFmAuth instance from environment variables
     pub fn from_env() -> Result<Self> {
+        let username = env::var("LASTFM_USERNAME")
+            .context("LASTFM_USERNAME not found in environment")?;
+        let password = env::var("LASTFM_PASSWORD")
+            .context("LASTFM_PASSWORD not found in environment")?;
         let api_key = env::var("LASTFM_API_KEY")
             .context("LASTFM_API_KEY not found in environment")?;
         let api_secret = env::var("LASTFM_API_SECRET")
             .context("LASTFM_API_SECRET not found in environment")?;
-        let session_key = env::var("LASTFM_SESSION_KEY")
-            .context("LASTFM_SESSION_KEY not found in environment")?;
 
         Ok(Self {
+            username,
+            password,
             api_key,
             api_secret,
-            session_key,
         })
     }
 }
 
-/// Authenticate with Last.fm using credentials from environment
-pub async fn authenticate() -> Result<Scrobbler> {
-    info!("Authenticating with Last.fm...");
-    
-    // Load credentials
-    let auth = LastFmAuth::from_env()?;
-    
-    // Create and authenticate scrobbler
-    let scrobbler = Scrobbler::new(auth.api_key, auth.api_secret);
-    
-    // Verify we have a valid session key
-    if auth.session_key.is_empty() {
-        warn!("No Last.fm session key found. Please authenticate at:");
-        warn!("https://www.last.fm/api/auth");
-        return Err(LastFmError::MissingCredentials(
-            "Session key required".to_string(),
-        ))?;
+pub struct LastFm {
+    scrobbler: Scrobbler,
+}
+
+impl LastFm {
+    /// Create and authenticate a new Last.fm session
+    pub async fn new() -> Result<Self> {
+        info!("Initializing Last.fm connection...");
+        
+        // Load credentials
+        let auth = LastFmAuth::from_env()?;
+        
+        // Create scrobbler
+        let mut scrobbler = Scrobbler::new(&auth.api_key, &auth.api_secret);
+        
+        // Authenticate
+        match scrobbler.authenticate_with_password(&auth.username, &auth.password) {
+            Ok(_) => {
+                info!("Successfully authenticated with Last.fm as {}", auth.username);
+                Ok(Self { scrobbler })
+            }
+            Err(e) => {
+                error!("Failed to authenticate with Last.fm: {}", e);
+                Err(LastFmError::AuthenticationError(e.to_string()).into())
+            }
+        }
     }
 
-    info!("Successfully authenticated with Last.fm");
-    Ok(scrobbler)
+    /// Scrobble a track to Last.fm
+    pub async fn scrobble(&self, artist: &str, title: &str, album: Option<&str>) -> Result<()> {
+        let mut scrobble = Scrobble::new(artist, title, "");
+        
+        if let Some(album_name) = album {
+            scrobble = scrobble.album(album_name);
+        }
+
+        match self.scrobbler.scrobble(scrobble) {
+            Ok(_) => {
+                info!("Scrobbled: {} - {}", artist, title);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to scrobble track: {}", e);
+                Err(anyhow::anyhow!("Scrobbling failed: {}", e))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -44,8 +44,9 @@ async fn discover_sonos_devices() -> Result<Vec<String>> {
         .filter_map(|response| {
             match response {
                 Ok(response) => {
-                    if let Some(location) = response.location() {
-                        if let Some(host) = location.host_str() {
+                    let location = response.location();
+                    if let Ok(url) = url::Url::parse(location) {
+                        if let Some(host) = url.host_str() {
                             let host_string = host.to_string();
                             if !host_string.is_empty() {
                                 Some(host_string)

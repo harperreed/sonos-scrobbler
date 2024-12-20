@@ -178,10 +178,11 @@ impl DeviceManager {
                             "[{}] Now playing: {} - {}",
                             self.room_name, artist, title
                         );
+                        // Album is not available in CurrentTrack, so we'll pass None
                         Ok(Some((
                             artist.to_string(),
                             title.to_string(),
-                            track.album,
+                            None,
                         )))
                     } else {
                         Ok(None)

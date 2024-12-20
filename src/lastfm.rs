@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{error, info, warn};
+use log::{error, info};
 use rustfm_scrobble::{Scrobble, Scrobbler};
 use std::env;
 use thiserror::Error;
@@ -73,11 +73,12 @@ impl LastFm {
     pub async fn scrobble(&self, artist: &str, title: &str, album: Option<&str>) -> Result<()> {
         let mut scrobble = Scrobble::new(artist, title, "");
         
+        // Create scrobble with album if provided
         if let Some(album_name) = album {
-            scrobble = scrobble.album(album_name);
+            scrobble.album = album_name.to_string();
         }
 
-        match self.scrobbler.scrobble(scrobble) {
+        match self.scrobbler.scrobble(&scrobble) {
             Ok(_) => {
                 info!("Scrobbled: {} - {}", artist, title);
                 Ok(())

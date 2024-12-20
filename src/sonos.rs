@@ -1,7 +1,24 @@
-use anyhow::{Result, Context};
+use anyhow::{Result, Context, anyhow};
 use log::{error, info};
 use serde::Deserialize;
 use std::time::Duration;
+use quick_xml::de::from_str;
+
+/// Represents detailed track information from a Sonos device
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackInfo {
+    #[serde(rename = "Track")]
+    pub title: String,
+    #[serde(rename = "Artist")]
+    pub artist: String,
+    #[serde(rename = "Album")]
+    pub album: String,
+    #[serde(rename = "Duration")]
+    pub duration: String,
+    #[serde(rename = "RelTime")]
+    pub position: String,
+}
 
 /// Represents the currently playing track information
 #[derive(Debug, Deserialize)]
@@ -50,6 +67,52 @@ pub async fn subscribe_to_playback_events(device_ip: &str) -> Result<()> {
 }
 
 /// Get the current playback state from a Sonos device
+/// Get current track information from a Sonos device
+///
+/// # Arguments
+/// * `device_ip` - IP address of the Sonos device
+///
+/// # Returns
+/// Result containing track information including title, artist, album and timing
+pub async fn get_current_track_info(device_ip: &str) -> Result<TrackInfo> {
+    let client = reqwest::Client::new();
+    let base_url = format!("http://{}:1400", device_ip);
+    
+    // SOAP request to get current track info
+    let soap_body = r#"<?xml version="1.0"?>
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+            <s:Body>
+                <u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                    <InstanceID>0</InstanceID>
+                </u:GetPositionInfo>
+            </s:Body>
+        </s:Envelope>"#;
+
+    let response = client
+        .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
+        .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
+        .header("Content-Type", "text/xml")
+        .body(soap_body)
+        .send()
+        .await
+        .context("Failed to send request to Sonos device")?;
+
+    let response_text = response.text().await?;
+    
+    // Extract the relevant XML portion containing track info
+    let track_info_start = response_text.find("<u:GetPositionInfoResponse")
+        .ok_or_else(|| anyhow!("Could not find track info in response"))?;
+    let track_info_end = response_text.find("</u:GetPositionInfoResponse>")
+        .ok_or_else(|| anyhow!("Malformed response XML"))?;
+    let track_info_xml = &response_text[track_info_start..track_info_end + 25];
+
+    // Parse the XML into our TrackInfo struct
+    let track_info: TrackInfo = from_str(track_info_xml)
+        .context("Failed to parse track information")?;
+
+    Ok(track_info)
+}
+
 async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {
     // SOAP request to get current track info
     let soap_body = r#"<?xml version="1.0"?>

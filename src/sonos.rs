@@ -82,17 +82,18 @@ mod tests {
                 .create();
 
             let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
-        
-        assert_eq!(result.title, "Test Song");
-        assert_eq!(result.artist, "Test Artist");
-        assert_eq!(result.album, "Test Album");
-        assert_eq!(result.position, "0:01:23");
-        assert_eq!(result.duration, "0:04:56");
+            
+            assert_eq!(result.title, "Test Song");
+            assert_eq!(result.artist, "Test Artist");
+            assert_eq!(result.album, "Test Album");
+            assert_eq!(result.position, "0:01:23");
+            assert_eq!(result.duration, "0:04:56");
+        });
     }
 
     #[test]
     fn test_extract_didl_value() {
-        let xml = r#"<DIDL-Lite><dc:title>Test Song</dc:title></DIDL-Lite>"#;
+        let xml = r#"<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Test Song</dc:title></DIDL-Lite>"#;
         let result = extract_didl_value(xml, "dc:title").unwrap();
         assert_eq!(result, "Test Song");
     }

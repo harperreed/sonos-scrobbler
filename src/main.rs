@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use log::{info, debug, error};
 use std::env;
 use std::time::Duration;
-use ssdp_client::SearchTarget;
+use ssdp_client::{SearchTarget, URN};
 use anyhow::{Result, Context};
 
 /// Initialize the logging system with environment-based configuration
@@ -25,7 +25,7 @@ async fn discover_sonos_devices() -> Result<Vec<String>> {
     // Create SSDP search target for Sonos devices
     // Sonos devices use the urn:schemas-upnp-org:device:ZonePlayer:1 search target
     let search_target = SearchTarget::URN(
-        "schemas-upnp-org:device:ZonePlayer:1".to_string()
+        URN::new("schemas-upnp-org:device:ZonePlayer:1").unwrap()
     );
     
     // Configure search options
@@ -38,6 +38,7 @@ async fn discover_sonos_devices() -> Result<Vec<String>> {
     
     // Extract IP addresses from responses
     let devices: Vec<String> = responses
+        .collect::<Result<Vec<_>, _>>()?
         .iter()
         .filter_map(|response| {
             response.location()

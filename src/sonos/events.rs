@@ -7,7 +7,6 @@ use rusty_sonos::{
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-#[derive(Clone)]
 pub struct EventSubscriber {
     speaker: Speaker,
     friendly_name: String,
@@ -35,8 +34,10 @@ impl EventSubscriber {
             .find(|d| d.friendly_name.contains(rincon_id))
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
-        let ip_addr: Ipv4Addr = device.ip_addr.parse()?;
-        let speaker = Speaker::new(ip_addr).await?;
+        let ip_addr: Ipv4Addr = device.ip_addr.parse()
+            .map_err(|e| anyhow::anyhow!("Failed to parse IP address: {}", e))?;
+        let speaker = Speaker::new(ip_addr).await
+            .map_err(|e| anyhow::anyhow!("Failed to create speaker: {}", e))?;
         
         Ok(Self {
             speaker,
@@ -50,7 +51,8 @@ impl EventSubscriber {
         let mut last_track: Option<String> = None;
         
         loop {
-            let current = self.speaker.get_current_track().await?;
+            let current = self.speaker.get_current_track().await
+                .map_err(|e| anyhow::anyhow!("Failed to get current track: {}", e))?;
             let track_info = match (current.artist, current.title) {
                 (Some(artist), Some(title)) => format!("{} - {}", artist, title),
                 (Some(artist), None) => artist,

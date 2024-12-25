@@ -22,22 +22,16 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Create subscribers for all devices
+    // Create track pollers for all devices
     let mut handles = Vec::new();
     
     for device_name in devices {
-        info!("Setting up subscriber for device: {}", device_name);
+        info!("Setting up track polling for device: {}", device_name);
         let subscriber = EventSubscriber::new(&device_name).await?;
-        subscriber.subscribe().await?;
         
-        // Spawn a task for each device's event handling
-        let device_name_clone = device_name.clone();
         let handle = tokio::spawn(async move {
-            if let Err(e) = subscriber.handle_events(move |event| {
-                info!("Received event from {}: {:?}", device_name_clone, event);
-                Ok(())
-            }).await {
-                info!("Error handling events for {}: {}", device_name, e);
+            if let Err(e) = subscriber.poll_current_track().await {
+                info!("Error polling tracks for {}: {}", device_name, e);
             }
         });
         

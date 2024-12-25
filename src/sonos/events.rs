@@ -1,10 +1,10 @@
 use anyhow::Result;
-use hyper::{Body, Request, Response, Server};
 use log::{info, warn};
-use rusty_sonos::discovery::discover_devices;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::mpsc;
+use rusty_sonos::{
+    discovery::discover_devices,
+    speaker::current_track::CurrentTrack,
+};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct EventSubscriber {
@@ -40,60 +40,27 @@ impl EventSubscriber {
         })
     }
 
-    pub async fn subscribe(&self) -> Result<()> {
-        info!("Subscribing to Sonos events for device {}...", self.friendly_name);
+    pub async fn poll_current_track(&self) -> Result<()> {
+        info!("Starting track polling for device {}...", self.friendly_name);
         
-        // Start local HTTP server to receive events
-        let addr = SocketAddr::from(([0, 0, 0, 0], 0));
-        let (tx, mut rx) = mpsc::channel(100);
-        let tx = Arc::new(tx);
-
-        let make_service = hyper::service::make_service_fn(move |_| {
-            let tx = tx.clone();
-            async move {
-                Ok::<_, hyper::Error>(hyper::service::service_fn(move |req: Request<Body>| {
-                    let tx = tx.clone();
-                    async move {
-                        let body_bytes = hyper::body::to_bytes(req.into_body()).await?;
-                        if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
-                            info!("Received event: {}", body_str);
-                            let _ = tx.send(body_str).await;
-                        }
-                        Ok::<_, hyper::Error>(Response::new(Body::empty()))
-                    }
-                }))
+        let mut last_track: Option<String> = None;
+        
+        loop {
+            let current = CurrentTrack::get(&self.device_ip).await?;
+            let track_info = format!("{} - {}", current.artist, current.title);
+            
+            if let Some(last) = &last_track {
+                if last != &track_info {
+                    info!("Track changed on {}: {}", self.friendly_name, track_info);
+                    last_track = Some(track_info);
+                }
+            } else {
+                info!("Initial track on {}: {}", self.friendly_name, track_info);
+                last_track = Some(track_info);
             }
-        });
-
-        let server = Server::bind(&addr).serve(make_service);
-        let addr = server.local_addr();
-        info!("Event listener started on {}", addr);
-
-        // Subscribe to Sonos events
-        let callback_url = format!("http://{}/notify", addr);
-        let client = reqwest::Client::new();
-        
-        // Subscribe to AVTransport events
-        let sub_url = format!("http://{}/MediaRenderer/AVTransport/Event", self.device_ip);
-        let resp = client
-            .post(&sub_url)
-            .header("CALLBACK", format!("<{}>", callback_url))
-            .header("NT", "upnp:event")
-            .header("TIMEOUT", "Second-300")
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            warn!("Failed to subscribe to events: {}", resp.status());
+            
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
-
-        // Process events
-        while let Some(event) = rx.recv().await {
-            info!("Processing event: {}", event);
-            // TODO: Parse XML event and extract relevant information
-        }
-
-        Ok(())
     }
 
     pub async fn handle_events<F>(&self, callback: F) -> Result<()>

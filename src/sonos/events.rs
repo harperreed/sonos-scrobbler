@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futures::StreamExt;
 use hyper::{Body, Request, Response, Server};
 use log::{info, warn};
 use rusty_sonos::discovery::{discover_devices, BasicSpeakerInfo};
@@ -72,7 +71,7 @@ impl EventSubscriber {
         // Subscribe to AVTransport events
         let sub_url = format!("http://{}/MediaRenderer/AVTransport/Event", self.device.ip_addr);
         let resp = client
-            .subscribe(&sub_url)
+            .post(&sub_url)
             .header("CALLBACK", format!("<{}>", callback_url))
             .header("NT", "upnp:event")
             .header("TIMEOUT", "Second-300")
@@ -96,6 +95,23 @@ impl EventSubscriber {
     where
         F: Fn(String) -> Result<()> + Send + 'static,
     {
-        self.subscribe().await
+        let (tx, mut rx) = mpsc::channel(100);
+        
+        // Start subscription in background task
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = self.subscribe().await {
+                warn!("Subscription error: {}", e);
+            }
+        });
+
+        // Process events with callback
+        while let Some(event) = rx.recv().await {
+            if let Err(e) = callback(event) {
+                warn!("Error processing event: {}", e);
+            }
+        }
+        
+        Ok(())
     }
 }

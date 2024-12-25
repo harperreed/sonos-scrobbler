@@ -1,26 +1,29 @@
 use anyhow::Result;
 use log::{info, error};
-use rusty_sonos::discovery::Discoverer;
-use rusty_sonos::events::{EventSubscriber as SonosEventSubscriber, Event};
+use rusty_sonos::{Sonos, Event};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct EventSubscriber {
-    subscriber: Arc<Mutex<SonosEventSubscriber>>,
+    sonos: Arc<Mutex<Sonos>>,
+    device_ip: String,
 }
 
 impl EventSubscriber {
     pub async fn new(device_ip: &str) -> Result<Self> {
-        let subscriber = SonosEventSubscriber::new(device_ip).await?;
+        let sonos = Sonos::discover().await?;
         Ok(Self {
-            subscriber: Arc::new(Mutex::new(subscriber))
+            sonos: Arc::new(Mutex::new(sonos)),
+            device_ip: device_ip.to_string(),
         })
     }
 
     pub async fn subscribe(&self) -> Result<()> {
-        info!("Subscribing to Sonos events...");
-        let mut subscriber = self.subscriber.lock().await;
-        subscriber.subscribe().await?;
+        info!("Subscribing to Sonos events for device {}...", self.device_ip);
+        let sonos = self.sonos.lock().await;
+        if let Some(device) = sonos.device(&self.device_ip) {
+            device.subscribe_events().await?;
+        }
         Ok(())
     }
 
@@ -28,19 +31,22 @@ impl EventSubscriber {
     where
         F: Fn(Event) -> Result<()> + Send + 'static,
     {
-        let subscriber = Arc::clone(&self.subscriber);
+        let sonos = Arc::clone(&self.sonos);
+        let device_ip = self.device_ip.clone();
         
         tokio::spawn(async move {
             loop {
-                let mut sub = subscriber.lock().await;
-                match sub.next_event().await {
-                    Ok(event) => {
-                        if let Err(e) = callback(event) {
-                            error!("Error handling event: {}", e);
+                let sonos_guard = sonos.lock().await;
+                if let Some(device) = sonos_guard.device(&device_ip) {
+                    match device.next_event().await {
+                        Ok(event) => {
+                            if let Err(e) = callback(event) {
+                                error!("Error handling event: {}", e);
+                            }
                         }
-                    }
-                    Err(e) => {
-                        error!("Error getting next event: {}", e);
+                        Err(e) => {
+                            error!("Error getting next event: {}", e);
+                        }
                     }
                 }
             }

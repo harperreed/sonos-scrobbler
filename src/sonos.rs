@@ -49,7 +49,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_current_track_info() {
-        let mock_server = mockito::Server::new();
+        let mut mock_server = mockito::Server::new();
 
         // Setup mock response
         let _m = mock_server

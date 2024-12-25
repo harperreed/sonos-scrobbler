@@ -1,7 +1,7 @@
 use anyhow::Result;
 use hyper::{Body, Request, Response, Server};
 use log::{info, warn};
-use rusty_sonos::discovery::{discover_devices, BasicSpeakerInfo};
+use rusty_sonos::discovery::discover_devices;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -35,7 +35,7 @@ impl EventSubscriber {
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
         Ok(Self {
-            device_ip: device.ip_addr.clone(),
+            device_ip: device.ip_addr.to_string(),
             friendly_name: device.friendly_name.clone(),
         })
     }
@@ -103,11 +103,16 @@ impl EventSubscriber {
         let (tx, mut rx) = mpsc::channel(100);
         
         // Clone necessary data for the background task
-        let device = self.device.clone();
+        // Clone necessary data for the background task
+        let device_ip = self.device_ip.clone();
+        let friendly_name = self.friendly_name.clone();
         
         // Start subscription in background task
         tokio::spawn(async move {
-            let subscriber = EventSubscriber { device };
+            let subscriber = EventSubscriber { 
+                device_ip,
+                friendly_name,
+            };
             if let Err(e) = subscriber.subscribe().await {
                 warn!("Subscription error: {}", e);
             }

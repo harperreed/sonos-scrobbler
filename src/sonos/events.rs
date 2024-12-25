@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::{info, error};
-use rusty_sonos::{Sonos, Event};
+use rusty_sonos::discovery::Sonos;
+use rusty_sonos::events::Event;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -31,7 +32,7 @@ impl EventSubscriber {
     where
         F: Fn(Event) -> Result<()> + Send + 'static,
     {
-        let sonos = Arc::clone(&self.sonos);
+        let sonos: Arc<Mutex<Sonos>> = Arc::clone(&self.sonos);
         let device_ip = self.device_ip.clone();
         
         tokio::spawn(async move {

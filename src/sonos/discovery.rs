@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::info;
-use rusty_sonos::Sonos;
+use rusty_sonos::discovery::Sonos;
 
 pub struct SonosDiscovery {
     sonos: Sonos,
@@ -8,7 +8,7 @@ pub struct SonosDiscovery {
 
 impl SonosDiscovery {
     pub async fn new() -> Result<Self> {
-        let sonos = Sonos::discover().await?;
+        let sonos = Sonos::discover().await.map_err(anyhow::Error::from)?;
         Ok(Self { sonos })
     }
 

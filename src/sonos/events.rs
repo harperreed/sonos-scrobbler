@@ -6,8 +6,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+#[derive(Clone)]
 pub struct EventSubscriber {
-    device: BasicSpeakerInfo,
+    device_ip: String,
+    friendly_name: String,
 }
 
 impl EventSubscriber {
@@ -32,11 +34,14 @@ impl EventSubscriber {
             .find(|d| d.friendly_name.contains(rincon_id))
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
-        Ok(Self { device })
+        Ok(Self {
+            device_ip: device.ip_addr.clone(),
+            friendly_name: device.friendly_name.clone(),
+        })
     }
 
     pub async fn subscribe(&self) -> Result<()> {
-        info!("Subscribing to Sonos events for device {}...", self.device.friendly_name);
+        info!("Subscribing to Sonos events for device {}...", self.friendly_name);
         
         // Start local HTTP server to receive events
         let addr = SocketAddr::from(([0, 0, 0, 0], 0));
@@ -69,7 +74,7 @@ impl EventSubscriber {
         let client = reqwest::Client::new();
         
         // Subscribe to AVTransport events
-        let sub_url = format!("http://{}/MediaRenderer/AVTransport/Event", self.device.ip_addr);
+        let sub_url = format!("http://{}/MediaRenderer/AVTransport/Event", self.device_ip);
         let resp = client
             .post(&sub_url)
             .header("CALLBACK", format!("<{}>", callback_url))
@@ -97,12 +102,16 @@ impl EventSubscriber {
     {
         let (tx, mut rx) = mpsc::channel(100);
         
+        // Clone necessary data for the background task
+        let device = self.device.clone();
+        
         // Start subscription in background task
-        let tx_clone = tx.clone();
         tokio::spawn(async move {
-            if let Err(e) = self.subscribe().await {
+            let subscriber = EventSubscriber { device };
+            if let Err(e) = subscriber.subscribe().await {
                 warn!("Subscription error: {}", e);
             }
+            let _ = tx.send("Subscription ended".to_string()).await;
         });
 
         // Process events with callback

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log::info;
 use rusty_sonos::discovery::{discover_devices, BasicSpeakerInfo};
-use std::time::Duration;
 
 pub struct EventSubscriber {
     device: BasicSpeakerInfo,

@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
         
         // Spawn a task for each device's event handling
         let handle = tokio::spawn(async move {
-            if let Err(e) = subscriber.handle_events(|event| {
+            if let Err(e) = subscriber.handle_events(move |event| {
                 info!("Received event from {}: {:?}", device_name, event);
                 Ok(())
             }).await {

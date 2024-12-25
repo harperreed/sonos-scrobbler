@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::info;
 use rusty_sonos::{
     discovery::discover_devices,
-    speaker::CurrentTrack,
+    responses::CurrentTrack,
 };
 use std::time::Duration;
 
@@ -47,7 +47,12 @@ impl EventSubscriber {
         
         loop {
             let current = CurrentTrack::get(&self.device_ip).await?;
-            let track_info = format!("{} - {}", current.artist, current.title);
+            let track_info = match (current.artist, current.title) {
+                (Some(artist), Some(title)) => format!("{} - {}", artist, title),
+                (Some(artist), None) => artist,
+                (None, Some(title)) => title,
+                (None, None) => "Unknown Track".to_string(),
+            };
             
             if let Some(last) = &last_track {
                 if last != &track_info {

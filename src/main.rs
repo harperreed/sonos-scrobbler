@@ -1,5 +1,6 @@
 use anyhow::Result;
 use log::info;
+use sonos_scrobbler::sonos::{SonosDiscovery, EventSubscriber};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -7,14 +8,14 @@ async fn main() -> Result<()> {
     info!("Starting Sonos Scrobbler...");
 
     // Initialize Sonos discovery
-    let discovery = sonos_scrobbler::sonos::SonosDiscovery::new().await?;
+    let discovery = SonosDiscovery::new().await?;
     
     // Discover devices
     let devices = discovery.discover_devices().await?;
     
     for device_ip in devices {
         // Subscribe to events for each device
-        let subscriber = sonos_scrobbler::sonos::EventSubscriber::new(&device_ip).await?;
+        let subscriber = EventSubscriber::new(&device_ip).await?;
         subscriber.subscribe().await?;
         
         subscriber.handle_events(|event| {

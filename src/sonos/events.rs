@@ -12,16 +12,20 @@ impl EventSubscriber {
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         
-        // Extract just the model name from the combined string
+        // Extract the RINCON ID from the input string
         // Format: "IP - Model Name - RINCON_ID, Room Name"
-        let model_name = device_name
+        let rincon_id = device_name
             .split(" - ")
-            .nth(1)
+            .nth(2)
+            .and_then(|s| s.split(',').next())
             .ok_or_else(|| anyhow::anyhow!("Invalid device name format: {}", device_name))?;
 
+        info!("Looking for device with RINCON ID: {}", rincon_id);
+        
         let device = devices
             .into_iter()
-            .find(|d| d.friendly_name == model_name)
+            .inspect(|d| info!("Checking device: {} with ID: {}", d.friendly_name, d.uid))
+            .find(|d| d.uid == rincon_id)
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
         Ok(Self { device })

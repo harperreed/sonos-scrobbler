@@ -1,8 +1,8 @@
 use anyhow::Result;
-use log::{info, warn};
+use log::info;
 use rusty_sonos::{
     discovery::discover_devices,
-    device::track::CurrentTrack,
+    speaker::CurrentTrack,
 };
 use std::time::Duration;
 

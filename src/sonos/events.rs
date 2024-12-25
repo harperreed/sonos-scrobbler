@@ -24,8 +24,8 @@ impl EventSubscriber {
         
         let device = devices
             .into_iter()
-            .inspect(|d| info!("Checking device: {} with ID: {}", d.friendly_name, d.uid))
-            .find(|d| d.uid == rincon_id)
+            .inspect(|d| info!("Checking device: {}", d.friendly_name))
+            .find(|d| d.friendly_name.contains(rincon_id))
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
         Ok(Self { device })

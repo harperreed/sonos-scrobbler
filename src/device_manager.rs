@@ -180,7 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_connection_failure() {
-        let mock_server = Server::new();
+        let mut mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 
@@ -200,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reconnection_success() {
-        let mock_server = Server::new();
+        let mut mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 

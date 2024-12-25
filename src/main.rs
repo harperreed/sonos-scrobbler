@@ -10,18 +10,27 @@ async fn main() -> Result<()> {
     // Initialize Sonos discovery
     let discovery = SonosDiscovery::new().await?;
     
-    // Discover devices
+    // Discover and list devices
     let devices = discovery.discover_devices().await?;
+    info!("Available devices:");
+    for (i, device) in devices.iter().enumerate() {
+        info!("  {}: {}", i + 1, device);
+    }
     
-    for device_ip in devices {
-        // Subscribe to events for each device
-        let subscriber = EventSubscriber::new(&device_ip).await?;
+    // Pick first device for now
+    if let Some(device_name) = devices.first() {
+        info!("Selecting first device: {}", device_name);
+        
+        // Subscribe to events for selected device
+        let subscriber = EventSubscriber::new(device_name).await?;
         subscriber.subscribe().await?;
         
         subscriber.handle_events(|event| {
             info!("Received event: {:?}", event);
             Ok(())
         }).await?;
+    } else {
+        info!("No Sonos devices found!");
     }
 
     // Keep the application running

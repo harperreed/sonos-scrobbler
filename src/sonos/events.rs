@@ -1,3 +1,4 @@
+use crate::sonos::TrackDatabase;
 use anyhow::Result;
 use log::info;
 use rusty_sonos::{
@@ -10,6 +11,7 @@ use std::time::Duration;
 pub struct EventSubscriber {
     speaker: Speaker,
     friendly_name: String,
+    db: TrackDatabase,
 }
 
 #[cfg(test)]
@@ -70,9 +72,12 @@ impl EventSubscriber {
         let speaker = Speaker::new(&ip_addr.to_string()).await
             .map_err(|e| anyhow::anyhow!("Failed to create speaker: {}", e))?;
         
+        let db = TrackDatabase::new().await?;
+        
         Ok(Self {
             speaker,
             friendly_name: device.friendly_name.clone(),
+            db,
         })
     }
 
@@ -93,12 +98,16 @@ impl EventSubscriber {
             
             if let Some(last) = &last_track {
                 if last != &track_info {
-                    info!("Track changed on {}: {}", self.friendly_name, track_info);
-                    last_track = Some(track_info);
+                    if self.db.log_track(&self.friendly_name, &track_info).await? {
+                        info!("Track changed and logged on {}: {}", self.friendly_name, track_info);
+                        last_track = Some(track_info);
+                    }
                 }
             } else {
-                info!("Initial track on {}: {}", self.friendly_name, track_info);
-                last_track = Some(track_info);
+                if self.db.log_track(&self.friendly_name, &track_info).await? {
+                    info!("Initial track logged on {}: {}", self.friendly_name, track_info);
+                    last_track = Some(track_info);
+                }
             }
             
             tokio::time::sleep(Duration::from_secs(5)).await;

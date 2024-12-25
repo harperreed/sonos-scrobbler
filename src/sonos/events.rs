@@ -35,7 +35,7 @@ impl EventSubscriber {
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
         let ip_addr = IpAddr::V4(device.ip_addr);
-        let speaker = Speaker::new(ip_addr).await
+        let speaker = Speaker::new(&ip_addr.to_string()).await
             .map_err(|e| anyhow::anyhow!("Failed to create speaker: {}", e))?;
         
         Ok(Self {

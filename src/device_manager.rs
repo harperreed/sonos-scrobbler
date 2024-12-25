@@ -49,7 +49,11 @@ impl DeviceManager {
                 self.state = ConnectionState::Connected;
                 self.retry_count = 0;
                 // Initialize speaker
-                self.speaker = Some(Speaker::new(&self.ip_addr).await.map_err(anyhow::Error::msg)?);
+                self.speaker = Some(
+                    Speaker::new(&self.ip_addr)
+                        .await
+                        .map_err(anyhow::Error::msg)?,
+                );
                 Ok(())
             }
             Err(e) => {
@@ -144,23 +148,15 @@ impl DeviceManager {
         false
     }
 
-
     pub async fn get_current_track(&self) -> Result<Option<(String, String, Option<String>)>> {
         if let Some(speaker) = &self.speaker {
             match speaker.get_current_track().await {
                 Ok(track) => {
                     if let Some(title) = &track.title {
                         let artist = track.artist.as_deref().unwrap_or("Unknown Artist");
-                        info!(
-                            "[{}] Now playing: {} - {}",
-                            self.room_name, artist, title
-                        );
+                        info!("[{}] Now playing: {} - {}", self.room_name, artist, title);
                         // Album is not available in CurrentTrack, so we'll pass None
-                        Ok(Some((
-                            artist.to_string(),
-                            title.to_string(),
-                            None,
-                        )))
+                        Ok(Some((artist.to_string(), title.to_string(), None)))
                     } else {
                         Ok(None)
                     }
@@ -174,5 +170,56 @@ impl DeviceManager {
             warn!("Speaker not initialized");
             Ok(None)
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::Server;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_connection_failure() {
+        let mut mock_server = Server::new();
+        let mut device_manager =
+            DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
+
+        let _m = mock_server
+            .mock("GET", "/status/info")
+            .with_status(500)
+            .with_body("Internal error")
+            .create();
+
+        let result = device_manager.connect().await;
+        assert!(result.is_err());
+        assert!(matches!(
+            device_manager.state,
+            ConnectionState::Disconnected
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_reconnection_success() {
+        let mut mock_server = Server::new();
+        let mut device_manager =
+            DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
+
+        let _m1 = mock_server
+            .mock("GET", "/status/info")
+            .with_status(500)
+            .create();
+
+        let initial_result = device_manager.connect().await;
+        assert!(initial_result.is_err());
+
+        let _m2 = mock_server
+            .mock("GET", "/status/info")
+            .with_status(200)
+            .create();
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let reconnect_result = device_manager.check_connection().await;
+        assert!(reconnect_result);
+        assert!(matches!(device_manager.state, ConnectionState::Connected));
     }
 }

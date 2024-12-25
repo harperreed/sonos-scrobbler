@@ -1,4 +1,4 @@
-use anyhow::{Result, Context, anyhow};
+use anyhow::{anyhow, Context, Result};
 use log::debug;
 use serde::Deserialize;
 use std::io::BufReader;
@@ -50,21 +50,24 @@ mod tests {
     #[tokio::test]
     async fn test_get_current_track_info() {
         let mut mock_server = mockito::Server::new();
-        
+
         // Setup mock response
-        let _m = mock_server.mock("POST", "/MediaRenderer/AVTransport/Control")
+        let _m = mock_server
+            .mock("POST", "/MediaRenderer/AVTransport/Control")
             .with_status(200)
             .with_header("content-type", "text/xml")
             .with_body(SAMPLE_SOAP_RESPONSE)
             .create();
 
-        let result = get_current_track_info(&mock_server.url()[7..]).await.unwrap();
-        
-        assert_eq!(result.title, "Test Song");
-        assert_eq!(result.artist, "Test Artist");
-        assert_eq!(result.album, "Test Album");
-        assert_eq!(result.position, "0:01:23");
-        assert_eq!(result.duration, "0:04:56");
+        let result = get_current_track_info(&mock_server.url()[7..])
+            .await
+            .unwrap();
+
+        assert_eq!(result.title, Some("Test Song".to_string()));
+        assert_eq!(result.artist, Some("Test Artist".to_string()));
+        assert_eq!(result.album, Some("Test Album".to_string()));
+        assert_eq!(result.position, Some("0:01:23".to_string()));
+        assert_eq!(result.duration, Some("0:04:56".to_string()));
     }
 
     #[test]
@@ -96,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_extract_didl_value_malformed_xml() {
-        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title></DIDL-Lite"#;  // Missing closing angle bracket
+        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title></DIDL-Lite"#; // Missing closing angle bracket
         assert!(extract_didl_value(xml, "dc:title").is_err());
     }
 }
@@ -132,7 +135,6 @@ pub struct PlaybackState {
     pub duration: Option<String>,
 }
 
-
 /// Get the current playback state from a Sonos device
 /// Get current track information from a Sonos device
 ///
@@ -144,7 +146,7 @@ pub struct PlaybackState {
 pub async fn get_current_track_info(device_ip: &str) -> Result<PlaybackState> {
     let client = reqwest::Client::new();
     let base_url = format!("http://{}:1400", device_ip);
-    
+
     let sonos_response = get_sonos_info(&client, &base_url).await?;
     Ok(PlaybackState::from(sonos_response))
 }
@@ -153,10 +155,10 @@ pub async fn get_current_track_info(device_ip: &str) -> Result<PlaybackState> {
 fn extract_didl_value(xml: &str, tag: &str) -> Result<String> {
     use quick_xml::events::Event;
     use quick_xml::Reader;
-    
+
     let mut reader = Reader::from_str(xml);
     reader.trim_text(true);
-    
+
     let mut buf = Vec::new();
     let mut inside_target_tag = false;
     let mut value = String::new();
@@ -169,19 +171,20 @@ fn extract_didl_value(xml: &str, tag: &str) -> Result<String> {
                 if name.local_name().as_ref() == tag.split(':').last().unwrap_or(tag).as_bytes() {
                     inside_target_tag = true;
                 }
-            },
+            }
             Ok(Event::Text(e)) if inside_target_tag => {
-                value = e.unescape()
+                value = e
+                    .unescape()
                     .context("Failed to unescape XML text")?
                     .to_string();
                 break;
-            },
+            }
             Ok(Event::End(ref e)) => {
                 let name = e.name();
                 if name.local_name().as_ref() == tag.split(':').last().unwrap_or(tag).as_bytes() {
                     inside_target_tag = false;
                 }
-            },
+            }
             Ok(Event::Eof) => break,
             Err(e) => return Err(anyhow!("Error parsing XML: {}", e)),
             _ => (),
@@ -209,7 +212,10 @@ async fn get_sonos_info(client: &reqwest::Client, base_url: &str) -> Result<Sono
 
     let response = client
         .post(format!("{}/MediaRenderer/AVTransport/Control", base_url))
-        .header("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"")
+        .header(
+            "SOAPAction",
+            "\"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo\"",
+        )
         .header("Content-Type", "text/xml")
         .body(soap_body)
         .send()
@@ -218,13 +224,13 @@ async fn get_sonos_info(client: &reqwest::Client, base_url: &str) -> Result<Sono
 
     let response_text = response.text().await?;
     debug!("Raw SOAP response: {}", response_text);
-    
+
     let reader = BufReader::new(response_text.as_bytes());
-    let envelope: SoapEnvelope = quick_xml::de::from_reader(reader)
-        .context("Failed to parse SOAP envelope")?;
+    let envelope: SoapEnvelope =
+        quick_xml::de::from_reader(reader).context("Failed to parse SOAP envelope")?;
 
     let track_metadata = envelope.body.position_info_response.track_meta_data;
-    
+
     let (title, artist, album) = if track_metadata.trim().is_empty() {
         debug!("Empty track metadata received");
         (None, None, None)
@@ -245,7 +251,10 @@ async fn get_sonos_info(client: &reqwest::Client, base_url: &str) -> Result<Sono
     })
 }
 
-async fn get_current_playback_state(client: &reqwest::Client, base_url: &str) -> Result<PlaybackState> {
+async fn get_current_playback_state(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> Result<PlaybackState> {
     let sonos_response = get_sonos_info(client, base_url).await?;
     Ok(PlaybackState::from(sonos_response))
 }

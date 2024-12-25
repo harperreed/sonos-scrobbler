@@ -47,9 +47,9 @@ mod tests {
             </s:Body>
         </s:Envelope>"#;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_get_current_track_info() {
-        let mut mock_server = mockito::Server::new();
+        let mock_server = mockito::Server::new();
 
         // Setup mock response
         let _m = mock_server
@@ -66,8 +66,8 @@ mod tests {
         assert_eq!(result.title, Some("Test Song".to_string()));
         assert_eq!(result.artist, Some("Test Artist".to_string()));
         assert_eq!(result.album, Some("Test Album".to_string()));
-        assert_eq!(result.position, Some("0:01:23".to_string()));
-        assert_eq!(result.duration, Some("0:04:56".to_string()));
+        assert_eq!(result.position, "0:01:23".to_string());
+        assert_eq!(result.duration, "0:04:56".to_string());
     }
 
     #[test]
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_extract_didl_value_malformed_xml() {
-        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title></DIDL-Lite"#; // Missing closing angle bracket
+        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title"#; // More severely malformed XML
         assert!(extract_didl_value(xml, "dc:title").is_err());
     }
 }

@@ -178,9 +178,9 @@ mod tests {
     use mockito::Server;
     use std::time::Duration;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_connection_failure() {
-        let mut mock_server = Server::new();
+        let mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 
@@ -198,9 +198,9 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_reconnection_success() {
-        let mut mock_server = Server::new();
+        let mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 
@@ -212,12 +212,12 @@ mod tests {
         let initial_result = device_manager.connect().await;
         assert!(initial_result.is_err());
 
-        let _m2 = mock_server
+        mock_server
             .mock("GET", "/status/info")
             .with_status(200)
             .create();
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
         let reconnect_result = device_manager.check_connection().await;
         assert!(reconnect_result);
         assert!(matches!(device_manager.state, ConnectionState::Connected));

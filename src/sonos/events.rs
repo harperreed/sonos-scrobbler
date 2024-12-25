@@ -12,6 +12,38 @@ pub struct EventSubscriber {
     friendly_name: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::predicate::*;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_event_subscriber_new_valid_device() {
+        let device_name = "192.168.1.100 - Sonos Play:1 - RINCON_123456,Living Room";
+        let result = EventSubscriber::new(device_name).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_subscriber_new_invalid_device_name() {
+        let device_name = "Invalid Device Name";
+        let result = EventSubscriber::new(device_name).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_parse_rincon_id() {
+        let device_name = "192.168.1.100 - Sonos Play:1 - RINCON_123456,Living Room";
+        let rincon_id = device_name
+            .split(" - ")
+            .nth(2)
+            .and_then(|s| s.split(',').next())
+            .unwrap();
+        assert_eq!(rincon_id, "RINCON_123456");
+    }
+}
+
 impl EventSubscriber {
     pub async fn new(device_name: &str) -> Result<Self> {
         let devices = discover_devices(2, 5)

@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1"
+mockall = "0.11"
+
+[dev-dependencies]
+tokio-test = "0.4"
 dotenv = "0.15"
 mockito = "1.2"
 rustfm-scrobble = "1.1"

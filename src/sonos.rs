@@ -66,8 +66,8 @@ mod tests {
         assert_eq!(result.title, Some("Test Song".to_string()));
         assert_eq!(result.artist, Some("Test Artist".to_string()));
         assert_eq!(result.album, Some("Test Album".to_string()));
-        assert_eq!(result.position, "0:01:23".to_string());
-        assert_eq!(result.duration, "0:04:56".to_string());
+        assert_eq!(result.position, Some("0:01:23".to_string()));
+        assert_eq!(result.duration, Some("0:04:56".to_string()));
     }
 
     #[test]

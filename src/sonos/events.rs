@@ -1,6 +1,7 @@
 use anyhow::Result;
-use log::{info, error};
-use rusty_sonos::{discover_devices, Device};
+use log::info;
+use rusty_sonos::discovery::discover_devices;
+use rusty_sonos::device::Device;
 use std::time::Duration;
 
 pub struct EventSubscriber {

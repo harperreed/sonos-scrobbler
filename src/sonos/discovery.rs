@@ -1,10 +1,11 @@
 use anyhow::Result;
 use log::info;
-use rusty_sonos::discover_devices;
+use rusty_sonos::discovery::discover_devices;
+use rusty_sonos::device::Device;
 use std::time::Duration;
 
 pub struct SonosDiscovery {
-    devices: Vec<rusty_sonos::Device>,
+    devices: Vec<Device>,
 }
 
 impl SonosDiscovery {

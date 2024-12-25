@@ -47,9 +47,9 @@ mod tests {
             </s:Body>
         </s:Envelope>"#;
 
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test]
     async fn test_get_current_track_info() {
-        let mut mock_server = mockito::Server::new();
+        let mock_server = mockito::Server::new();
 
         // Setup mock response
         let _m = mock_server
@@ -99,8 +99,9 @@ mod tests {
 
     #[test]
     fn test_extract_didl_value_malformed_xml() {
-        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title"#; // More severely malformed XML
-        assert!(extract_didl_value(xml, "dc:title").is_err());
+        let xml = r#"<DIDL-Lite><dc:title>Test</dc:title"#; // Malformed XML missing closing tag
+        let result = extract_didl_value(xml, "dc:title");
+        assert!(result.is_err(), "Expected error for malformed XML");
     }
 }
 

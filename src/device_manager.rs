@@ -178,9 +178,9 @@ mod tests {
     use mockito::Server;
     use std::time::Duration;
 
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test]
     async fn test_connection_failure() {
-        let mut mock_server = Server::new();
+        let mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 
@@ -198,9 +198,9 @@ mod tests {
         ));
     }
 
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test]
     async fn test_reconnection_success() {
-        let mut mock_server = Server::new();
+        let mock_server = Server::new();
         let mut device_manager =
             DeviceManager::new(mock_server.url()[7..].to_string(), "Test Room".to_string());
 

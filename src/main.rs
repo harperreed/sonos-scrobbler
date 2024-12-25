@@ -17,23 +17,33 @@ async fn main() -> Result<()> {
         info!("  {}: {}", i + 1, device);
     }
     
-    // Pick first device for now
-    if let Some(device_name) = devices.first() {
-        info!("Selecting first device: {}", device_name);
-        
-        // Subscribe to events for selected device
-        let subscriber = EventSubscriber::new(device_name).await?;
-        subscriber.subscribe().await?;
-        
-        subscriber.handle_events(|event| {
-            info!("Received event: {:?}", event);
-            Ok(())
-        }).await?;
-    } else {
+    if devices.is_empty() {
         info!("No Sonos devices found!");
+        return Ok(());
     }
 
-    // Keep the application running
+    // Create subscribers for all devices
+    let mut handles = Vec::new();
+    
+    for device_name in devices {
+        info!("Setting up subscriber for device: {}", device_name);
+        let subscriber = EventSubscriber::new(&device_name).await?;
+        subscriber.subscribe().await?;
+        
+        // Spawn a task for each device's event handling
+        let handle = tokio::spawn(async move {
+            if let Err(e) = subscriber.handle_events(|event| {
+                info!("Received event from {}: {:?}", device_name, event);
+                Ok(())
+            }).await {
+                info!("Error handling events for {}: {}", device_name, e);
+            }
+        });
+        
+        handles.push(handle);
+    }
+
+    // Wait for ctrl-c while handling events
     tokio::signal::ctrl_c().await?;
     info!("Shutting down...");
     

@@ -1,27 +1,31 @@
 use anyhow::Result;
 use log::info;
-use rusty_sonos::discovery::Sonos;
+use rusty_sonos::discover_devices;
+use std::time::Duration;
 
 pub struct SonosDiscovery {
-    sonos: Sonos,
+    devices: Vec<rusty_sonos::Device>,
 }
 
 impl SonosDiscovery {
     pub async fn new() -> Result<Self> {
-        let sonos = Sonos::discover().await.map_err(anyhow::Error::from)?;
-        Ok(Self { sonos })
+        let devices = discover_devices(
+            Duration::from_secs(2),
+            Duration::from_secs(5)
+        ).await.map_err(anyhow::Error::from)?;
+        
+        Ok(Self { devices })
     }
 
     pub async fn discover_devices(&self) -> Result<Vec<String>> {
         info!("Discovering Sonos devices...");
-        let devices = self.sonos.devices();
         
-        let device_ips: Vec<String> = devices
+        let device_info: Vec<String> = self.devices
             .iter()
-            .map(|device| device.ip().to_string())
+            .map(|device| format!("{}, {}", device.friendly_name(), device.room_name()))
             .collect();
 
-        info!("Found {} Sonos devices", device_ips.len());
-        Ok(device_ips)
+        info!("Found {} Sonos devices", device_info.len());
+        Ok(device_info)
     }
 }

@@ -1,58 +1,38 @@
 use anyhow::Result;
 use log::{info, error};
-use rusty_sonos::discovery::Sonos;
-use rusty_sonos::events::Event;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use rusty_sonos::{discover_devices, Device};
+use std::time::Duration;
 
 pub struct EventSubscriber {
-    sonos: Arc<Mutex<Sonos>>,
-    device_ip: String,
+    device: Device,
 }
 
 impl EventSubscriber {
-    pub async fn new(device_ip: &str) -> Result<Self> {
-        let sonos = Sonos::discover().await?;
-        Ok(Self {
-            sonos: Arc::new(Mutex::new(sonos)),
-            device_ip: device_ip.to_string(),
-        })
+    pub async fn new(device_name: &str) -> Result<Self> {
+        let devices = discover_devices(
+            Duration::from_secs(2),
+            Duration::from_secs(5)
+        ).await.map_err(anyhow::Error::from)?;
+        
+        let device = devices
+            .into_iter()
+            .find(|d| d.friendly_name() == device_name)
+            .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
+
+        Ok(Self { device })
     }
 
     pub async fn subscribe(&self) -> Result<()> {
-        info!("Subscribing to Sonos events for device {}...", self.device_ip);
-        let sonos = self.sonos.lock().await;
-        if let Some(device) = sonos.device(&self.device_ip) {
-            device.subscribe_events().await?;
-        }
+        info!("Subscribing to Sonos events for device {}...", self.device.friendly_name());
+        // TODO: Implement event subscription once we understand the correct API
         Ok(())
     }
 
-    pub async fn handle_events<F>(&self, callback: F) -> Result<()>
+    pub async fn handle_events<F>(&self, _callback: F) -> Result<()>
     where
-        F: Fn(Event) -> Result<()> + Send + 'static,
+        F: Fn(String) -> Result<()> + Send + 'static,
     {
-        let sonos: Arc<Mutex<Sonos>> = Arc::clone(&self.sonos);
-        let device_ip = self.device_ip.clone();
-        
-        tokio::spawn(async move {
-            loop {
-                let sonos_guard = sonos.lock().await;
-                if let Some(device) = sonos_guard.device(&device_ip) {
-                    match device.next_event().await {
-                        Ok(event) => {
-                            if let Err(e) = callback(event) {
-                                error!("Error handling event: {}", e);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error getting next event: {}", e);
-                        }
-                    }
-                }
-            }
-        });
-
+        // TODO: Implement event handling once we understand the correct API
         Ok(())
     }
 }

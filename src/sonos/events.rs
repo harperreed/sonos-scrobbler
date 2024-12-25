@@ -12,13 +12,16 @@ impl EventSubscriber {
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         
-        // Extract just the friendly name from the combined string (format: "friendly_name, room_name")
-        let friendly_name = device_name.split(',').next()
+        // Extract just the model name from the combined string
+        // Format: "IP - Model Name - RINCON_ID, Room Name"
+        let model_name = device_name
+            .split(" - ")
+            .nth(1)
             .ok_or_else(|| anyhow::anyhow!("Invalid device name format: {}", device_name))?;
 
         let device = devices
             .into_iter()
-            .find(|d| d.friendly_name == friendly_name)
+            .find(|d| d.friendly_name == model_name)
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
         Ok(Self { device })

@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::{info, warn};
 use rusty_sonos::{
     discovery::discover_devices,
-    speaker::current_track::CurrentTrack,
+    device::track::CurrentTrack,
 };
 use std::time::Duration;
 
@@ -63,36 +63,4 @@ impl EventSubscriber {
         }
     }
 
-    pub async fn handle_events<F>(&self, callback: F) -> Result<()>
-    where
-        F: Fn(String) -> Result<()> + Send + 'static,
-    {
-        let (tx, mut rx) = mpsc::channel(100);
-        
-        // Clone necessary data for the background task
-        // Clone necessary data for the background task
-        let device_ip = self.device_ip.clone();
-        let friendly_name = self.friendly_name.clone();
-        
-        // Start subscription in background task
-        tokio::spawn(async move {
-            let subscriber = EventSubscriber { 
-                device_ip,
-                friendly_name,
-            };
-            if let Err(e) = subscriber.subscribe().await {
-                warn!("Subscription error: {}", e);
-            }
-            let _ = tx.send("Subscription ended".to_string()).await;
-        });
-
-        // Process events with callback
-        while let Some(event) = rx.recv().await {
-            if let Err(e) = callback(event) {
-                warn!("Error processing event: {}", e);
-            }
-        }
-        
-        Ok(())
-    }
 }

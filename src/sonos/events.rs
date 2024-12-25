@@ -4,7 +4,7 @@ use rusty_sonos::{
     discovery::discover_devices,
     speaker::Speaker,
 };
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 pub struct EventSubscriber {
@@ -34,7 +34,7 @@ impl EventSubscriber {
             .find(|d| d.friendly_name.contains(rincon_id))
             .ok_or_else(|| anyhow::anyhow!("Device not found: {}", device_name))?;
 
-        let ip_addr: Ipv4Addr = device.ip_addr.parse()
+        let ip_addr = device.ip_addr.parse::<IpAddr>()
             .map_err(|e| anyhow::anyhow!("Failed to parse IP address: {}", e))?;
         let speaker = Speaker::new(ip_addr).await
             .map_err(|e| anyhow::anyhow!("Failed to create speaker: {}", e))?;
